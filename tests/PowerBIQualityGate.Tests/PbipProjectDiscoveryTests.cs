@@ -1,4 +1,5 @@
 using PowerBIQualityGate.Core.Discovery;
+
 using Xunit;
 
 namespace PowerBIQualityGate.Tests;
