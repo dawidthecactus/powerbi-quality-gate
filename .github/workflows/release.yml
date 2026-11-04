@@ -1,0 +1,187 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pbiq-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Verify version matches the tag
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $project = Get-Content 'src/PowerBIQualityGate.Cli/PowerBIQualityGate.Cli.csproj' -Raw
+          $match = [regex]::Match($project, '<Version>(\d+\.\d+\.\d+)</Version>')
+          if (-not $match.Success) {
+              throw 'CLI project must specify a three-part <Version>.'
+          }
+          $version = $match.Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+              throw "Tag '$env:GITHUB_REF_NAME' does not match CLI version '$version'."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+  verify:
+    name: Verify (${{ matrix.os }})
+    needs: metadata
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build with warnings as errors
+        run: dotnet build -c Release --no-restore -warnaserror
+
+      - name: Run tests
+        run: dotnet test -c Release --no-build --no-restore
+
+      - name: Verify formatting
+        run: dotnet format whitespace --verify-no-changes --no-restore
+
+  package:
+    name: Package (${{ matrix.rid }})
+    needs: [metadata, verify]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            archive: pbiq-win-x64.zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: pbiq-linux-x64.tar.gz
+    env:
+      PACKAGE_RID: ${{ matrix.rid }}
+      PACKAGE_VERSION: ${{ needs.metadata.outputs.version }}
+      PACKAGE_ARCHIVE: ${{ matrix.archive }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish self-contained single-file CLI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish src/PowerBIQualityGate.Cli/PowerBIQualityGate.Cli.csproj `
+              -c Release -r $env:PACKAGE_RID --self-contained true `
+              -p:PublishSingleFile=true -p:PublishTrimmed=false `
+              -p:DebugType=none -p:Version=$env:PACKAGE_VERSION `
+              -o "publish/$env:PACKAGE_RID"
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
+
+      - name: Smoke-test published executable and package files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $publishDir = Join-Path $PWD "publish/$env:PACKAGE_RID"
+          $binaryName = if ($IsWindows) { 'pbiq.exe' } else { 'pbiq' }
+          $binary = Join-Path $publishDir $binaryName
+          if (-not (Test-Path -LiteralPath $binary)) { throw "Missing executable: $binary" }
+          if (-not $IsWindows) {
+              & chmod +x $binary
+              if ($LASTEXITCODE -ne 0) { throw 'chmod failed.' }
+          }
+
+          & $binary scan examples/valid-pbir-tmdl --no-color
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI failed smoke test.' }
+
+          Copy-Item -LiteralPath README.md -Destination $publishDir
+          Copy-Item -LiteralPath LICENSE -Destination $publishDir
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $archive = Join-Path $PWD "dist/$env:PACKAGE_ARCHIVE"
+          if ($IsWindows) {
+              Compress-Archive -Path "$publishDir/*" -DestinationPath $archive -CompressionLevel Optimal
+          }
+          else {
+              & tar -czf $archive -C $publishDir .
+              if ($LASTEXITCODE -ne 0) { throw 'tar packaging failed.' }
+          }
+          if (-not (Test-Path -LiteralPath $archive)) { throw 'Archive was not created.' }
+
+      - name: Upload distributable
+        uses: actions/upload-artifact@v4
+        with:
+          name: pbiq-${{ matrix.rid }}
+          path: dist/${{ matrix.archive }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub prerelease
+    if: github.event_name == 'push'
+    needs: [metadata, verify, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pbiq-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate and verify SHA256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/pbiq-win-x64.zip
+          test -s dist/pbiq-linux-x64.tar.gz
+          (cd dist && sha256sum pbiq-win-x64.zip pbiq-linux-x64.tar.gz > SHA256SUMS.txt)
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+
+      - name: Create prerelease with artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            dist/pbiq-win-x64.zip \
+            dist/pbiq-linux-x64.tar.gz \
+            dist/SHA256SUMS.txt \
+            --verify-tag \
+            --prerelease \
+            --title "Power BI Quality Gate $RELEASE_TAG" \
+            --generate-notes

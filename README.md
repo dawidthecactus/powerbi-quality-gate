@@ -4,134 +4,142 @@
 
 **A command-line quality gate for Power BI project files.**
 
-`powerbi-quality-gate` (`pbiq`) inspects the structure of a Power BI Project (`.pbip`) and reports actionable diagnostics with machine-friendly exit codes. It is designed to make Power BI project checks repeatable locally and in CI.
+`powerbi-quality-gate` (`pbiq`) performs read-only structural checks on Power BI
+Project (`.pbip`) files. It provides a branded terminal report, stable diagnostic
+codes, explanations, suggested fixes, and CI-friendly exit codes.
 
-> **Early development (pre-1.0).** The current implementation validates project structure. It is **not yet** a DAX linter, a semantic-model best-practice analyzer, or a complete Power BI validator.
+> **Early development (v0.1.x).** A successful scan means the implemented
+> **structure checks** passed. This is **not** a DAX linter, model-quality
+> analyzer, full PBIR/TMDL validator, or proof a project will open in Desktop.
 
 ## What works today
 
-- Discover a `.pbip` file from an explicit file path or a directory containing exactly one `.pbip` file.
+- Find a `.pbip` entry point from a file path or a directory containing exactly one `.pbip`.
 - Parse the PBIP shortcut and resolve its referenced report directory.
-- Check the expected report layout for PBIR or PBIR-Legacy.
-- Detect a local semantic model in TMDL or TMSL format, or an external model reference.
-- Report structural errors with stable diagnostic codes (`PBI-001` through `PBI-018`) and relevant paths.
-- Return non-zero exit codes suitable for automated checks.
-- Run locally without connecting to the Power BI service or Microsoft Fabric.
+- Validate the expected PBIR or PBIR-Legacy report structure and JSON files.
+- Detect a local TMDL/TMSL semantic model or an external model reference.
+- Display an easy-to-read project profile, checkpoints, findings, **WHY IT MATTERS** and **HOW TO FIX** guidance.
+- Provide diagnostic codes `PBI-001` through `PBI-018`, file paths, and stable exit codes.
+- Run fully offline without modifying project files or contacting Power BI/Fabric.
 
-For an exact inventory of implemented checks, see [Current checks](docs/current-checks.md). For the validation specification, see [Project structure validation](docs/project-structure-validation.md).
+See [current checks](docs/current-checks.md) and
+[project structure validation](docs/project-structure-validation.md) for exact
+rules and limitations.
 
-## Requirements
+## Install a standalone CLI
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build and run the CLI from source.
-- Git to clone the repository.
-- A Power BI Project saved in PBIP format to scan.
+**Once the first GitHub Release has been published**, download the matching
+archive from [Releases](https://github.com/dawidthecactus/powerbi-quality-gate/releases).
+These 64-bit archives include the required .NET runtime, so no .NET SDK or
+runtime installation is needed to run `pbiq`.
 
-The CLI has not yet been published as a global .NET tool or standalone executable. **Use `dotnet run` from the repository for now.**
+**Windows x64 (PowerShell):**
 
-## Quick start
+```powershell
+Expand-Archive .\pbiq-win-x64.zip -DestinationPath .\pbiq -Force
+& .\pbiq\pbiq.exe --version
+& .\pbiq\pbiq.exe scan 'C:\Reports\MyReport.pbip'
+$LASTEXITCODE
+```
 
-Clone and build:
+**Linux x64:**
+
+```bash
+mkdir -p pbiq
+tar -xzf pbiq-linux-x64.tar.gz -C pbiq
+./pbiq/pbiq --version
+./pbiq/pbiq scan ./reports/MyReport.pbip
+echo $?
+```
+
+For now, if the release has not yet been published, build and run from source
+using the next section. macOS and ARM64 packages are not available yet.
+Release archives come with `SHA256SUMS.txt` for download verification.
+
+## Build and run from source
+
+Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+and Git.
 
 ```powershell
 git clone https://github.com/dawidthecactus/powerbi-quality-gate.git
 cd powerbi-quality-gate
 dotnet restore
 dotnet build -c Release
-```
 
-Show CLI help:
-
-```powershell
 dotnet run --project src/PowerBIQualityGate.Cli -- --help
+dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl
 ```
 
-Scan a PBIP file (PowerShell example):
+`scan` accepts either a `.pbip` file or a directory with exactly one such file:
 
 ```powershell
-dotnet run --project src/PowerBIQualityGate.Cli -- scan "C:\Reports\MyReport.pbip"
-$LASTEXITCODE
+dotnet run --project src/PowerBIQualityGate.Cli -- scan 'C:\Reports\MyProject'
 ```
 
-Or scan a directory containing a single `.pbip` file:
-
-```powershell
-dotnet run --project src/PowerBIQualityGate.Cli -- scan "C:\Reports\MyProject"
-```
-
-You can disable color output explicitly or through `NO_COLOR`:
+Disable ANSI colors explicitly, or set the `NO_COLOR` environment variable:
 
 ```powershell
 dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl --no-color
 ```
 
-The console renderer displays a project summary, diagnostic table when necessary, and an explicit structural PASS/FAIL result. It writes successes to stdout and failures to stderr; piped output is plain text. See [Console output](docs/console-output.md).
+The terminal UI includes a PBIQ header, **PROJECT PROFILE**, **SCAN
+CHECKPOINTS**, a diagnostic report, and a final PASS/FAIL status. Findings
+include explanations and suggested fixes. A successful scan writes to stdout;
+failures write to stderr. Redirected output is plain text.
+See [console output](docs/console-output.md).
 
-On macOS/Linux, use a path such as `./reports/MyReport.pbip` and check the exit code with `echo $?`.
+## Included examples
 
-### Try the included examples
-
-These examples are **synthetic structural fixtures**, not full exports from Power BI Desktop:
+The repository contains **synthetic structural fixtures**, not full exports
+from Power BI Desktop:
 
 ```powershell
 dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl
 $LASTEXITCODE  # expected: 0
 
 dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/invalid-pbip-shortcut
-$LASTEXITCODE  # expected: 1 (PBI-002)
+$LASTEXITCODE  # expected: 1 with PBI-002
 ```
 
-See [example projects](examples/README.md) for their purpose and limitations.
-
-### Example output
-
-For a structurally valid project, the CLI reports the discovered entry point, report format, and semantic-model format:
+See [example projects](examples/README.md) for details. A simplified excerpt
+from the rendered output looks like this:
 
 ```text
-[OK] PBIP entry point: C:\Reports\MyReport.pbip
-[OK] Report format: Pbir
-[OK] Semantic model: Tmdl
-STRUCTURE VALIDATION: PASS (not full schema validation)
+PBIQ / POWER BI QUALITY GATE v0.1.0
+01 PROJECT PROFILE     Report: PBIR    Model: TMDL
+02 SCAN CHECKPOINTS    PBIP found / report found / model found
+03 DIAGNOSTIC REPORT   No structural issues detected
+04 FINAL RESULT        STRUCTURE VALIDATION: PASS
 ```
-
-For a `.pbip` file containing only `{}`:
-
-```text
-[OK] PBIP entry point: C:\Reports\Demo.pbip
-[Error] PBI-002: Expected PBIP shortcut version '1.0'. (C:\Reports\Demo.pbip)
-STRUCTURE VALIDATION: FAIL
-```
-
-These are illustrative examples of the CLI output, not reports from a particular user project.
 
 ### Exit codes
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Project discovery and implemented structure checks passed. |
-| `1` | A PBIP entry point was found, but structure validation failed. |
-| `2` | The input could not be discovered or resolved. |
+| `0` | PBIP found and implemented structure checks passed. |
+| `1` | PBIP found but one or more structure checks failed. |
+| `2` | Project input could not be discovered or resolved. |
 
-A `0` **does not guarantee** that Power BI Desktop can open the project or that its model and DAX are correct.
+Exit code `0` does **not** guarantee that Power BI Desktop can open the project,
+or that semantic model content or DAX is correct.
 
 ## Architecture
 
 ```text
 src/
-  PowerBIQualityGate.Cli/      # Commands, arguments, console output
-  PowerBIQualityGate.Core/     # Discovery, validation, diagnostics
+  PowerBIQualityGate.Cli/      # CLI, console report renderer and guidance
+  PowerBIQualityGate.Core/     # PBIP discovery and structural validation
 tests/
-  PowerBIQualityGate.Tests/    # xUnit tests
-docs/
-  project-structure-validation.md
+  PowerBIQualityGate.Tests/    # xUnit unit and sample-project tests
+examples/                      # Synthetic valid and invalid PBIP fixtures
+docs/                          # Checks, console output and release process
 .github/workflows/
   ci.yml                       # Windows + Ubuntu CI
+  release.yml                  # Dry-run packages and tag-triggered prerelease
 ```
 
-The Core library does not depend on CLI presentation. The current scan is read-only and does not modify Power BI files.
-
-## Development and checks
-
-Run the same core checks used by CI:
+## Development
 
 ```powershell
 dotnet restore
@@ -140,38 +148,40 @@ dotnet test -c Release
 dotnet format whitespace --verify-no-changes
 ```
 
-The GitHub Actions workflow runs builds, tests, and whitespace verification on both **Windows** and **Ubuntu** for pushes to `main` and pull requests.
+GitHub Actions runs these checks on Windows and Ubuntu. Release preparation
+supports a manual packaging dry run, followed by **explicit tagging** to
+publish binaries. See [release process](docs/release-process.md).
 
-## Current limitations
+## Limitations
 
-- Requires a `.pbip` shortcut with exactly one referenced report; standalone PBIR or Fabric Git exports without `.pbip` are not supported yet.
-- Performs structural checks and JSON parsing, **not** full Microsoft JSON Schema validation.
-- Detects TMDL/TMSL layouts but does not parse the semantic model or evaluate DAX.
-- Does not validate data, relationships, visual behavior, or report performance.
-- Does not authenticate to Fabric or verify that an external semantic model is available.
-- Path validation is lexical and is **not** a hardened security boundary for untrusted folders containing symlinks or junctions.
-- Current tests use synthetic fixtures; validation against real Power BI exports is a future integration-testing goal.
-
-See [the validation specification](docs/project-structure-validation.md) for details.
+- A `.pbip` shortcut with exactly one referenced report is currently required;
+  standalone PBIR and Fabric Git exports without `.pbip` are not supported.
+- Checks are structural and validate JSON parsing, **not** complete Microsoft
+  JSON Schema, TMDL parsing, DAX expressions, relationships or performance.
+- External models are not contacted or authenticated.
+- Path checks are lexical, not hardened against malicious filesystem
+  symlinks or junctions.
+- Synthetic test projects are not guaranteed to open in Power BI Desktop.
 
 ## Roadmap
 
-- [x] .NET solution, CLI foundation, and unit tests
-- [x] PBIP discovery and project-structure diagnostics
+- [x] .NET CLI foundation and unit tests
+- [x] PBIP discovery and structural diagnostics
 - [x] Cross-platform GitHub Actions CI
-- [x] Synthetic structural examples with automated tests
-- [ ] Real-export integration fixtures and broader PBIP entry points
-- [ ] Semantic model analysis using TOM/TMDL
-- [ ] Configurable quality rules and DAX-focused checks
+- [x] Synthetic structural fixtures
+- [x] Branded terminal UI and diagnostic guidance
+- [ ] Tagged release with standalone Windows and Linux binaries
+- [ ] Real-export integration fixtures and wider PBIP entry points
+- [ ] Semantic model analysis with TOM/TMDL
+- [ ] Configurable quality rules and DAX checks
 - [ ] JSON/SARIF reporting and policy-based CI gates
-- [ ] Packaged CLI installation and versioned releases
 
-The roadmap is directional; features are not promises of availability or timing.
+Roadmap items describe direction, not guaranteed dates or functionality.
 
 ## Contributing
 
-Issues and feedback are welcome. For coding conventions, test requirements, and pull-request steps, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+[MIT License](LICENSE).
