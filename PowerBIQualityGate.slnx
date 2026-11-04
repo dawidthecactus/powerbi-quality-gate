@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PowerBIQualityGate.Cli/PowerBIQualityGate.Cli.csproj" />
+    <Project Path="src/PowerBIQualityGate.Core/PowerBIQualityGate.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PowerBIQualityGate.Tests/PowerBIQualityGate.Tests.csproj" />
+  </Folder>
+</Solution>
