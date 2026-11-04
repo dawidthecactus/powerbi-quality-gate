@@ -1,4 +1,5 @@
 using System.CommandLine;
+using PowerBIQualityGate.Cli.Commands;
 
 namespace PowerBIQualityGate.Cli;
 
@@ -8,6 +9,8 @@ public static class CliApplication
     {
         var rootCommand = new RootCommand(
             "Static quality analysis for Power BI projects.");
+
+        rootCommand.Subcommands.Add(ScanCommand.Create());
 
         return rootCommand;
     }
