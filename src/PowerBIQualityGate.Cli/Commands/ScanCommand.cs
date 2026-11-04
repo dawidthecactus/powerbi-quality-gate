@@ -1,5 +1,6 @@
 using System.CommandLine;
 
+using PowerBIQualityGate.Cli.Rendering;
 using PowerBIQualityGate.Core.Discovery;
 using PowerBIQualityGate.Core.Validation;
 
@@ -13,40 +14,36 @@ public static class ScanCommand
         {
             Description = "Path to a PBIP file or project directory."
         };
+        var noColorOption = new Option<bool>("--no-color")
+        {
+            Description = "Disable ANSI colors and control codes in scan output."
+        };
 
         var command = new Command("scan", "Validate the structure of a Power BI project.");
         command.Arguments.Add(pathArgument);
+        command.Options.Add(noColorOption);
 
         command.SetAction(parseResult =>
         {
             var path = parseResult.GetValue(pathArgument) ?? string.Empty;
-            var discovery = new PbipProjectDiscovery().Discover(path);
+            var noColor = parseResult.GetValue(noColorOption) ||
+                          Environment.GetEnvironmentVariable("NO_COLOR") is not null;
 
+            var discovery = new PbipProjectDiscovery().Discover(path);
             if (!discovery.IsSuccess)
             {
-                Console.Error.WriteLine($"[ERROR] {discovery.Message}");
+                var errorConsole = ConsoleFactory.Create(
+                    Console.Error, noColor || Console.IsErrorRedirected);
+                new ConsoleReportRenderer(errorConsole).RenderDiscoveryFailure(discovery, path);
                 return 2;
             }
 
-            Console.WriteLine($"[OK] PBIP entry point: {discovery.PbipPath}");
             var result = new ProjectStructureValidator().Validate(discovery.PbipPath!);
-
-            foreach (var diagnostic in result.Diagnostics)
-            {
-                Console.Error.WriteLine(
-                    $"[{diagnostic.Severity}] {diagnostic.Code}: {diagnostic.Message} ({diagnostic.Path})");
-            }
-
-            if (!result.IsValid)
-            {
-                Console.Error.WriteLine("STRUCTURE VALIDATION: FAIL");
-                return 1;
-            }
-
-            Console.WriteLine($"[OK] Report format: {result.ReportFormat}");
-            Console.WriteLine($"[OK] Semantic model: {result.SemanticModelFormat}");
-            Console.WriteLine("STRUCTURE VALIDATION: PASS (not full schema validation)");
-            return 0;
+            var writer = result.IsValid ? Console.Out : Console.Error;
+            var redirected = result.IsValid ? Console.IsOutputRedirected : Console.IsErrorRedirected;
+            var console = ConsoleFactory.Create(writer, noColor || redirected);
+            new ConsoleReportRenderer(console).RenderScan(discovery.PbipPath!, result);
+            return result.IsValid ? 0 : 1;
         });
 
         return command;

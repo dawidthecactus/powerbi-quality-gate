@@ -18,7 +18,7 @@
 - Return non-zero exit codes suitable for automated checks.
 - Run locally without connecting to the Power BI service or Microsoft Fabric.
 
-For the precise checks, diagnostic catalog, and current limitations, see [Project structure validation](docs/project-structure-validation.md).
+For an exact inventory of implemented checks, see [Current checks](docs/current-checks.md). For the validation specification, see [Project structure validation](docs/project-structure-validation.md).
 
 ## Requirements
 
@@ -57,6 +57,14 @@ Or scan a directory containing a single `.pbip` file:
 ```powershell
 dotnet run --project src/PowerBIQualityGate.Cli -- scan "C:\Reports\MyProject"
 ```
+
+You can disable color output explicitly or through `NO_COLOR`:
+
+```powershell
+dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl --no-color
+```
+
+The console renderer displays a project summary, diagnostic table when necessary, and an explicit structural PASS/FAIL result. It writes successes to stdout and failures to stderr; piped output is plain text. See [Console output](docs/console-output.md).
 
 On macOS/Linux, use a path such as `./reports/MyReport.pbip` and check the exit code with `echo $?`.
 
