@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PowerBIQualityGate.Core\PowerBIQualityGate.Core.csproj" />
+    <ProjectReference Include="..\..\src\PowerBIQualityGate.Cli\PowerBIQualityGate.Cli.csproj" />
   </ItemGroup>
 
 </Project>
