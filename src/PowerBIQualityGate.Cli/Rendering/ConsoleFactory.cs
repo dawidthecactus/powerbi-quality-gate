@@ -11,9 +11,15 @@ public static class ConsoleFactory
         return AnsiConsole.Create(new AnsiConsoleSettings
         {
             Ansi = noColor ? AnsiSupport.No : AnsiSupport.Detect,
-            ColorSystem = noColor ? ColorSystemSupport.NoColors : ColorSystemSupport.Detect,
+            ColorSystem = noColor
+                ? ColorSystemSupport.NoColors
+                : ColorSystemSupport.Detect,
             Out = new AnsiConsoleOutput(writer),
-            Interactive = InteractionSupport.No
+            Interactive = InteractionSupport.No,
+            Enrichment = new ProfileEnrichment
+            {
+                UseDefaultEnrichers = !noColor
+            }
         });
     }
 }
