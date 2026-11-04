@@ -1,4 +1,5 @@
 using System.CommandLine;
+
 using PowerBIQualityGate.Cli.Commands;
 
 namespace PowerBIQualityGate.Cli;

@@ -1,5 +1,7 @@
 using System.CommandLine;
+
 using PowerBIQualityGate.Core.Discovery;
+using PowerBIQualityGate.Core.Validation;
 
 namespace PowerBIQualityGate.Cli.Commands;
 
@@ -12,32 +14,38 @@ public static class ScanCommand
             Description = "Path to a PBIP file or project directory."
         };
 
-        var command = new Command(
-            "scan",
-            "Discover a Power BI project.");
-
+        var command = new Command("scan", "Validate the structure of a Power BI project.");
         command.Arguments.Add(pathArgument);
 
         command.SetAction(parseResult =>
         {
-            var path = parseResult.GetValue(pathArgument);
-            var discovery = new PbipProjectDiscovery();
-            var result = discovery.Discover(path ?? "");
+            var path = parseResult.GetValue(pathArgument) ?? string.Empty;
+            var discovery = new PbipProjectDiscovery().Discover(path);
 
-            if (!result.IsSuccess)
+            if (!discovery.IsSuccess)
             {
-                Console.Error.WriteLine(
-                    $"[ERROR] {result.Message}");
-
+                Console.Error.WriteLine($"[ERROR] {discovery.Message}");
                 return 2;
             }
 
-            Console.WriteLine(
-                $"[OK] PBIP entry point: {result.PbipPath}");
+            Console.WriteLine($"[OK] PBIP entry point: {discovery.PbipPath}");
+            var result = new ProjectStructureValidator().Validate(discovery.PbipPath!);
 
-            Console.WriteLine(
-                "Project contents have not been validated yet.");
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                Console.Error.WriteLine(
+                    $"[{diagnostic.Severity}] {diagnostic.Code}: {diagnostic.Message} ({diagnostic.Path})");
+            }
 
+            if (!result.IsValid)
+            {
+                Console.Error.WriteLine("STRUCTURE VALIDATION: FAIL");
+                return 1;
+            }
+
+            Console.WriteLine($"[OK] Report format: {result.ReportFormat}");
+            Console.WriteLine($"[OK] Semantic model: {result.SemanticModelFormat}");
+            Console.WriteLine("STRUCTURE VALIDATION: PASS (not full schema validation)");
             return 0;
         });
 
