@@ -1,0 +1,10 @@
+{
+  "version": "0.0",
+  "artifacts": [
+    {
+      "report": {
+        "path": "Missing.Report"
+      }
+    }
+  ]
+}

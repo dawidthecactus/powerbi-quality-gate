@@ -60,6 +60,20 @@ dotnet run --project src/PowerBIQualityGate.Cli -- scan "C:\Reports\MyProject"
 
 On macOS/Linux, use a path such as `./reports/MyReport.pbip` and check the exit code with `echo $?`.
 
+### Try the included examples
+
+These examples are **synthetic structural fixtures**, not full exports from Power BI Desktop:
+
+```powershell
+dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl
+$LASTEXITCODE  # expected: 0
+
+dotnet run --project src/PowerBIQualityGate.Cli -- scan examples/invalid-pbip-shortcut
+$LASTEXITCODE  # expected: 1 (PBI-002)
+```
+
+See [example projects](examples/README.md) for their purpose and limitations.
+
 ### Example output
 
 For a structurally valid project, the CLI reports the discovered entry point, report format, and semantic-model format:
@@ -137,6 +151,7 @@ See [the validation specification](docs/project-structure-validation.md) for det
 - [x] .NET solution, CLI foundation, and unit tests
 - [x] PBIP discovery and project-structure diagnostics
 - [x] Cross-platform GitHub Actions CI
+- [x] Synthetic structural examples with automated tests
 - [ ] Real-export integration fixtures and broader PBIP entry points
 - [ ] Semantic model analysis using TOM/TMDL
 - [ ] Configurable quality rules and DAX-focused checks
@@ -151,4 +166,4 @@ Issues and feedback are welcome. For coding conventions, test requirements, and 
 
 ## License
 
-A license has not been added yet. Please check the repository for an explicit license before reusing or redistributing the code. One will be selected before the first tagged public release.
+This project is released under the [MIT License](LICENSE).
