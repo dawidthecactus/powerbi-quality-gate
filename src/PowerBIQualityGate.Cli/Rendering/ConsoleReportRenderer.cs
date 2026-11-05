@@ -75,23 +75,7 @@ public sealed class ConsoleReportRenderer
         WriteOutcome(result.IsValid, result.IsValid ? 0 : 1, errors, warnings, info, "STRUCTURE VALIDATION");
     }
 
-    private void WriteBrand()
-    {
-        // The logo is static, so non-interactive terminals and redirected output
-        // never need fake animations, cursor movement, or screen clearing.
-        _console.MarkupLine($"[bold {Teal}]  ██████╗  ██████╗ ██╗ ██████╗[/]");
-        _console.MarkupLine($"[bold {Teal}]  ██╔══██╗██╔══██╗██║██╔═══██╗[/]");
-        _console.MarkupLine($"[bold {Mint}]  ██████╔╝██████╔╝██║██║   ██║[/]");
-        _console.MarkupLine($"[bold {Mint}]  ██╔═══╝ ██╔══██╗██║██║▄▄ ██║[/]");
-        _console.MarkupLine($"[bold {Mint}]  ██║     ██████╔╝██║╚██████╔╝[/]");
-        _console.MarkupLine($"[bold {Mint}]  ╚═╝     ╚═════╝ ╚═╝ ╚══▀▀═╝[/]");
-        _console.WriteLine();
-
-        var version = typeof(ConsoleReportRenderer).Assembly.GetName().Version?.ToString(3) ?? "dev";
-        _console.MarkupLine($"  [bold {Mint}]PBIQ[/]  /  [bold {Ice}]POWER BI QUALITY GATE[/]  [{Muted}]v{Markup.Escape(version)}[/]");
-        _console.MarkupLine($"  [{Muted}]STRUCTURE SCANNER  /  LOCAL  /  READ-ONLY[/]");
-        _console.WriteLine();
-    }
+    private void WriteBrand() => PbiqConsoleChrome.WriteBrand(_console, "STRUCTURE SCANNER");
 
     private void WriteProjectProfile(string pbipPath, ProjectStructureValidationResult result)
     {
@@ -207,11 +191,8 @@ public sealed class ConsoleReportRenderer
         _console.MarkupLine($"  [{Muted}]No DAX, model-quality or full schema validation.[/]");
     }
 
-    private void WriteSection(string number, string title)
-    {
-        _console.MarkupLine($"  [bold {Teal}]{number}[/]  [bold {Ice}]{Markup.Escape(title)}[/]");
-        _console.MarkupLine($"  [{Border}]────────────────────────────────────────────[/]");
-    }
+    private void WriteSection(string number, string title) =>
+        PbiqConsoleChrome.WriteSection(_console, number, title);
 
     private void WriteCheckpoint(string index, string label, string description, string color, string symbol)
     {

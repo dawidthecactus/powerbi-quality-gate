@@ -12,6 +12,7 @@ public static class CliApplication
             "Static quality analysis for Power BI projects.");
 
         rootCommand.Subcommands.Add(ScanCommand.Create());
+        rootCommand.Subcommands.Add(InspectCommand.Create());
 
         return rootCommand;
     }
