@@ -41,7 +41,9 @@ public sealed class TomModelReader
                         measure.Name,
                         measure.Expression ?? string.Empty,
                         measure.FormatString,
-                        measure.IsHidden))
+                        measure.IsHidden,
+                        measure.DataType.ToString(),
+                        measure.FormatStringDefinition is not null))
                     .ToArray(),
                 table.Hierarchies.Count,
                 table.Partitions.Count))

@@ -15,7 +15,9 @@ public sealed record TomMeasureSnapshot(
     string Name,
     string Expression,
     string? FormatString,
-    bool IsHidden);
+    bool IsHidden,
+    string DataType = "Unknown",
+    bool HasDynamicFormatString = false);
 
 public sealed record TomTableSnapshot(
     string Name,
