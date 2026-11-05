@@ -22,7 +22,8 @@ Enter
 Show
 Type "pbiq inspect examples/valid-pbir-tmdl --measures"
 Enter
-Wait+Screen@30s /Measures inspected: 2/2/
+# Match a stable label; unescaped slashes inside /regex/ break VHS parsing.
+Wait+Screen@30s /Measures inspected:/
 Sleep 700ms
 Screenshot assets/screenshots/inspect-measures.png
 Sleep 300ms
