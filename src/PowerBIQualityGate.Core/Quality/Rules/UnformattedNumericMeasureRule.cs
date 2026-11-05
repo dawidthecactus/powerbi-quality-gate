@@ -1,4 +1,5 @@
 using PowerBIQualityGate.Core.Inspection;
+using PowerBIQualityGate.Core.Quality;
 using PowerBIQualityGate.Core.Validation;
 
 namespace PowerBIQualityGate.Core.Quality.Rules;
@@ -18,12 +19,9 @@ public sealed class UnformattedNumericMeasureRule : IModelQualityRule
         ArgumentNullException.ThrowIfNull(model);
 
         return model.Tables
-            .Where(table => !table.IsHidden)
             .SelectMany(table => table.Measures
-                .Where(measure => !measure.IsHidden &&
-                    IsNumeric(measure.DataType) &&
-                    string.IsNullOrWhiteSpace(measure.FormatString) &&
-                    !measure.HasDynamicFormatString)
+                .Where(measure => MeasureFormattingClassifier.Classify(table, measure) ==
+                    MeasureFormattingClassifier.Category.Unformatted)
                 .Select(measure => new ModelQualityIssue(
                     $"{table.Name}[{measure.Name}]",
                     $"Numeric measure '{measure.Name}' has no model-level format string.",
@@ -31,9 +29,4 @@ public sealed class UnformattedNumericMeasureRule : IModelQualityRule
                     "Set an appropriate format string or a dynamic format-string expression on the measure in the semantic model.")))
             .ToArray();
     }
-
-    private static bool IsNumeric(string? dataType) =>
-        string.Equals(dataType, "Int64", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(dataType, "Decimal", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(dataType, "Double", StringComparison.OrdinalIgnoreCase);
 }

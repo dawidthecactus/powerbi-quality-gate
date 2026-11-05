@@ -38,6 +38,7 @@ internal sealed class PlainTextAuditRenderer
         _writer.WriteLine(decision.FailOnWarning
             ? "  Active policy: warnings block the audit; information does not."
             : "  Default policy: warnings and information do not fail the audit.");
+        WriteObjectCoverage(snapshot, result);
         _writer.WriteLine();
 
         WriteSection("03", "DIAGNOSTIC REPORT");
@@ -94,6 +95,45 @@ internal sealed class PlainTextAuditRenderer
         _writer.WriteLine(decision.FailOnWarning
             ? "  Active policy: warnings block this run; information does not."
             : "  Warnings and information do not block the default quality gate.");
+    }
+
+    private void WriteObjectCoverage(TomModelSnapshot snapshot, ModelQualityAuditResult result)
+    {
+        var coverage = ModelAuditCoverageAnalyzer.Analyze(snapshot, result);
+        if (coverage.Rules.Count == 0)
+        {
+            return;
+        }
+
+        _writer.WriteLine();
+        _writer.WriteLine("  OBJECT COVERAGE (metadata predicates, not DAX evaluation)");
+        foreach (var scope in coverage.Rules)
+        {
+            switch (scope.RuleCode)
+            {
+                case "SM-001":
+                    _writer.WriteLine($"  SM-001  {scope.Checked}/{scope.Total} active relationships checked; {scope.Skipped} inactive excluded");
+                    break;
+                case "SM-002":
+                    WriteMeasureCoverage(coverage.MeasureFormatting!);
+                    break;
+                case "SM-003":
+                    _writer.WriteLine($"  SM-003  {scope.Checked}/{scope.Total} visible columns checked; {scope.Skipped} hidden excluded");
+                    break;
+                case "SM-004":
+                    _writer.WriteLine($"  SM-004  {scope.Checked}/{scope.Total} inactive relationships checked; {scope.Skipped} active excluded");
+                    break;
+            }
+        }
+
+        _writer.WriteLine("  Coverage is based on TOM metadata; unknown measure types are not inferred from DAX.");
+    }
+
+    private void WriteMeasureCoverage(MeasureFormattingCoverage measures)
+    {
+        _writer.WriteLine($"  SM-002  {measures.CheckedNumeric}/{measures.Visible} visible measures checked for numeric formatting ({measures.Total} total)");
+        _writer.WriteLine($"          formatted {measures.Formatted} (static {measures.FormattedStatic}, dynamic {measures.FormattedDynamic}); unformatted {measures.Unformatted}");
+        _writer.WriteLine($"          excluded: unknown/variant/other type {measures.UnknownType}; nonnumeric {measures.NonNumeric}; hidden {measures.Hidden}");
     }
 
     public void RenderFailure(string inputPath, string title, string message, string why, string fix, int exitCode)

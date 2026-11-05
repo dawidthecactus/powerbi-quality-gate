@@ -24,10 +24,13 @@ analysis and automated build checks.
   bidirectional relationships, visible numeric-measure formatting, visible
   technical columns and inactive relationships.
 - Enable `audit --fail-on-warning` to block on warnings in CI.
+- Inspect per-rule **OBJECT COVERAGE**, including evaluated/omitted model objects
+  and why `SM-002` skipped unknown TOM measure types.
 - Run read-only and offline, with structured exit codes and `--no-color` output.
 - Test on Windows and Ubuntu through GitHub Actions.
 
-See [quality gate policies](docs/quality-gate-ci.md),
+See [audit coverage](docs/audit-coverage-02.4.2.md),
+[quality gate policies](docs/quality-gate-ci.md),
 [rule definitions](docs/first-rule-pack.md),
 [current structural checks](docs/current-checks.md), and
 [TOM inspector details](docs/tom-inspector-preview.md).
@@ -155,8 +158,8 @@ codes from **real CLI processes**. See [CI policy guide](docs/quality-gate-ci.md
 - Structural checking does not implement complete Microsoft JSON Schema.
 - TOM deserialization does not evaluate DAX or query results or refresh data.
 - The four quality rules are conservative review suggestions, not proof of a
-  model defect. Numeric-measure formatting may be skipped when the offline TOM
-  data type is `Unknown`.
+  model defect. Object coverage reports the actual metadata scope; numeric
+  formatting is skipped when the offline TOM type is unknown or unsupported.
 - External semantic models are not contacted or authenticated.
 - Path checks are lexical and not hardened against malicious symlinks or junctions.
 

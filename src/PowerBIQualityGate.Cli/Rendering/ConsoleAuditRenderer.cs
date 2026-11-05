@@ -54,7 +54,7 @@ public sealed class ConsoleAuditRenderer
 
         PbiqConsoleChrome.WriteBrand(_console, "SEMANTIC MODEL AUDIT / RULE PACK 01");
         WriteProfile(pbipPath, snapshot);
-        WriteCoverage(result, decision);
+        WriteCoverage(snapshot, result, decision);
         WriteFindings(result);
         WriteFinalResult(result, decision);
     }
@@ -110,7 +110,7 @@ public sealed class ConsoleAuditRenderer
         _console.WriteLine();
     }
 
-    private void WriteCoverage(ModelQualityAuditResult result, QualityGateDecision decision)
+    private void WriteCoverage(TomModelSnapshot snapshot, ModelQualityAuditResult result, QualityGateDecision decision)
     {
         PbiqConsoleChrome.WriteSection(_console, "02", "RULE COVERAGE");
         _console.MarkupLine(
@@ -124,7 +124,47 @@ public sealed class ConsoleAuditRenderer
             ? "Active policy: warnings block the audit; information does not."
             : "Default policy: warnings and information do not fail the audit.";
         _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]{policy}[/]");
+        WriteObjectCoverage(snapshot, result);
         _console.WriteLine();
+    }
+
+    private void WriteObjectCoverage(TomModelSnapshot snapshot, ModelQualityAuditResult result)
+    {
+        var coverage = ModelAuditCoverageAnalyzer.Analyze(snapshot, result);
+        if (coverage.Rules.Count == 0)
+        {
+            return;
+        }
+
+        _console.WriteLine();
+        _console.MarkupLine($"  [bold {PbiqConsoleChrome.Ice}]OBJECT COVERAGE[/]  [{PbiqConsoleChrome.Muted}](metadata predicates, not DAX evaluation)[/]");
+        foreach (var scope in coverage.Rules)
+        {
+            switch (scope.RuleCode)
+            {
+                case "SM-001":
+                    _console.MarkupLine($"  [bold {PbiqConsoleChrome.Teal}]SM-001[/]  {scope.Checked}/{scope.Total} active relationships checked; {scope.Skipped} inactive excluded");
+                    break;
+                case "SM-002":
+                    WriteMeasureCoverage(coverage.MeasureFormatting!);
+                    break;
+                case "SM-003":
+                    _console.MarkupLine($"  [bold {PbiqConsoleChrome.Teal}]SM-003[/]  {scope.Checked}/{scope.Total} visible columns checked; {scope.Skipped} hidden excluded");
+                    break;
+                case "SM-004":
+                    _console.MarkupLine($"  [bold {PbiqConsoleChrome.Teal}]SM-004[/]  {scope.Checked}/{scope.Total} inactive relationships checked; {scope.Skipped} active excluded");
+                    break;
+            }
+        }
+
+        _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]Coverage is based on TOM metadata; unknown measure types are not inferred from DAX.[/]");
+    }
+
+    private void WriteMeasureCoverage(MeasureFormattingCoverage measures)
+    {
+        _console.MarkupLine($"  [bold {PbiqConsoleChrome.Teal}]SM-002[/]  {measures.CheckedNumeric}/{measures.Visible} visible measures checked for numeric formatting ({measures.Total} total)");
+        _console.MarkupLine($"          formatted {measures.Formatted} (static {measures.FormattedStatic}, dynamic {measures.FormattedDynamic}); unformatted {measures.Unformatted}");
+        _console.MarkupLine($"          excluded: unknown/variant/other type {measures.UnknownType}; nonnumeric {measures.NonNumeric}; hidden {measures.Hidden}");
     }
 
     private void WriteFindings(ModelQualityAuditResult result)
