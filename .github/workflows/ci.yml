@@ -89,20 +89,40 @@ jobs:
         shell: pwsh
         run: |
           $dll = Join-Path (Get-Location).Path 'src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll'
-          $result = & dotnet $dll inspect examples/valid-pbir-tmdl --measures --no-color
-          if ($LASTEXITCODE -ne 0) { throw 'Measure inventory should succeed.' }
-          $content = $result -join "`n"
-          if (-not $content.Contains('Measures inspected: 2/2') -or
-              -not $content.Contains('Format (visible):') -or
-              -not $content.Contains('Type (visible):')) {
-            throw 'Measure inventory did not contain required aggregates.'
-          }
-          if ($content.Contains([char]27) -or $content.Contains('SUM(')) {
-            throw 'Measure inventory exposed ANSI control or an expression.'
-          }
-          $bad = & dotnet $dll inspect examples/valid-pbir-tmdl --tom --measures 2>&1
-          if ($LASTEXITCODE -ne 2 -or -not (($bad -join "`n").Contains('alternative output modes'))) {
-            throw 'Conflicting inspection modes were not rejected.'
+          $stdout = Join-Path $env:RUNNER_TEMP 'pbiq-measures-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'pbiq-measures-stderr.txt'
+
+          # Start-Process captures intentional nonzero exit codes without pwsh
+          # treating the native command itself as an unhandled error.
+          $cases = @(
+            @{ Name = 'measure inventory'; Arguments = @('inspect', 'examples/valid-pbir-tmdl', '--measures', '--no-color'); Expected = 0; Marker = 'Measures inspected: 2/2' }
+            @{ Name = 'conflicting inspection modes'; Arguments = @('inspect', 'examples/valid-pbir-tmdl', '--tom', '--measures'); Expected = 2; Marker = 'alternative output modes' }
+          )
+
+          foreach ($case in $cases) {
+            $arguments = @($dll) + $case.Arguments
+            $process = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -Wait -PassThru -NoNewWindow `
+              -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            $stream = if ($case.Expected -eq 0) { $stdout } else { $stderr }
+            $content = Get-Content -LiteralPath $stream -Raw
+
+            if ($process.ExitCode -ne $case.Expected -or -not $content.Contains($case.Marker)) {
+              Write-Host "Case failed: $($case.Name); got exit $($process.ExitCode); expected $($case.Expected)"
+              Get-Content -LiteralPath $stdout
+              Get-Content -LiteralPath $stderr
+              throw "Measure inspection CLI smoke test failed: $($case.Name)"
+            }
+
+            if ($case.Expected -eq 0) {
+              if (-not $content.Contains('Format (visible):') -or
+                  -not $content.Contains('Type (visible):')) {
+                throw 'Measure inventory did not contain required aggregates.'
+              }
+              if ($content.Contains([char]27) -or $content.Contains('SUM(')) {
+                throw 'Measure inventory exposed ANSI control or an expression.'
+              }
+            }
+            Write-Host "PASS $($case.Name): exit $($process.ExitCode)"
           }
 
       - name: Verify formatting
