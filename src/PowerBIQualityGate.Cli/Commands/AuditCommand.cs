@@ -192,7 +192,7 @@ public static class AuditCommand
         var decision = new CoverageAwareGatePolicy(failOnWarning, minimumMeasureCoverage)
             .Evaluate(result, coverage);
         var console = decision.ExitCode == 0 ? output : errors;
-        new CompactAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result, decision, mode);
+        new CompactAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result, decision, mode, coverage);
         return decision.ExitCode;
     }
 }

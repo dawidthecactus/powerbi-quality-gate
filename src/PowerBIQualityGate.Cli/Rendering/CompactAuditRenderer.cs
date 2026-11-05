@@ -40,7 +40,8 @@ public sealed class CompactAuditRenderer
     }
 
     public void Render(string pbipPath, TomModelSnapshot snapshot, ModelQualityAuditResult result,
-        QualityGateDecision decision, AuditOutputMode mode = AuditOutputMode.Summary)
+        QualityGateDecision decision, AuditOutputMode mode = AuditOutputMode.Summary,
+        ModelAuditCoverage? coverage = null)
     {
         ArgumentNullException.ThrowIfNull(pbipPath);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -75,6 +76,7 @@ public sealed class CompactAuditRenderer
 
         Write("  CHECKS", $"  [bold {Mint}]CHECKS[/]");
         WriteRuleRows(result, decision);
+        WriteMeasureQualitySummary(result, coverage);
 
         if (decision.CandidateMeasures > 0)
         {
@@ -99,12 +101,13 @@ public sealed class CompactAuditRenderer
         }
         if (decision.HasMeasureCoverageGaps)
         {
-            Write("  Coverage gap: formatting not checked for unclassified measure types",
-                $"  [bold {Amber}]![/] [{Muted}]Coverage gap: formatting not checked for unclassified measure types[/]");
+            Write("  Coverage gap: numeric applicability unverified for unclassified measure types",
+                $"  [bold {Amber}]![/] [{Muted}]Coverage gap: numeric applicability unverified for unclassified measure types[/]");
         }
 
         if (mode == AuditOutputMode.Details)
         {
+            WriteMeasureQualityDetails(result, coverage);
             WriteGroupedFindings(result);
         }
         else if (result.Findings.Count > 0)
@@ -163,6 +166,54 @@ public sealed class CompactAuditRenderer
                 $"    [bold {tone}]{symbol}[/]  [{Muted}]{Markup.Escape(safeCode)}[/]  {label.PadRight(23)} [bold {tone}]{summary}[/]");
         }
     }
+
+    /// <summary>
+    /// The inspection and assessment are calculated by Core after SM-002 runs.
+    /// Only safe aggregate counts reach the default output; optional coverage
+    /// keeps existing direct renderer callers source-compatible.
+    /// </summary>
+    private void WriteMeasureQualitySummary(ModelQualityAuditResult result, ModelAuditCoverage? coverage)
+    {
+        if (!HasSm002Data(result, coverage))
+        {
+            return;
+        }
+
+        var inventory = coverage!.Sm002Inspection!;
+        var assessment = coverage.Sm002Assessment!;
+        Write($"  MEASURE QUALITY  ·  {inventory.Inspected}/{inventory.Total} inspected ({inventory.Visible} visible)",
+            $"  [bold {Mint}]MEASURE QUALITY[/]  [{Muted}]·  {inventory.Inspected}/{inventory.Total} inspected ({inventory.Visible} visible)[/]");
+        Write($"    Formats: {inventory.StaticFormats} static · {inventory.DynamicFormats} dynamic · {inventory.MissingFormats} missing  |  SM-002: {assessment.ConfirmedWarnings} warnings · {assessment.NeedsReview} review",
+            $"    [{Teal}]Formats:[/] {inventory.StaticFormats} static · {inventory.DynamicFormats} dynamic · " +
+            $"[bold {(inventory.MissingFormats > 0 ? Amber : Mint)}]{inventory.MissingFormats} missing[/]  " +
+            $"[{Muted}]|[/]  SM-002: [bold {(assessment.ConfirmedWarnings > 0 ? Red : Mint)}]{assessment.ConfirmedWarnings} warnings[/] " +
+            $"· [bold {(assessment.NeedsReview > 0 ? Amber : Mint)}]{assessment.NeedsReview} review[/]");
+    }
+
+    private void WriteMeasureQualityDetails(ModelQualityAuditResult result, ModelAuditCoverage? coverage)
+    {
+        if (!HasSm002Data(result, coverage))
+        {
+            return;
+        }
+
+        var inventory = coverage!.Sm002Inspection!;
+        var assessment = coverage.Sm002Assessment!;
+        Write(string.Empty);
+        Write("  SM-002 REVIEW BREAKDOWN", $"  [bold {Mint}]SM-002 REVIEW BREAKDOWN[/]");
+        Write($"    Confirmed numeric missing format: {assessment.KnownNumericMissingFormat} warnings");
+        Write($"    Unknown type + missing format: {assessment.UnknownTypeMissingFormat} review");
+        Write($"    Unsupported type + missing format: {assessment.UnsupportedTypeMissingFormat} review");
+        Write($"    Dynamic definition needs review: {assessment.DynamicFormatNeedsReview} review");
+        Write($"    Format present, unresolved type: {assessment.UnknownTypeWithFormat + assessment.UnsupportedTypeWithFormat} (not counted as review)");
+        Write($"    Excluded: {assessment.KnownNonNumeric} known nonnumeric · {inventory.Hidden} hidden");
+        Write("    Review items are not findings and do not block the quality gate.");
+        Write("    SM-002 coverage still measures numeric type classification, not metadata inspection.");
+    }
+
+    private static bool HasSm002Data(ModelQualityAuditResult result, ModelAuditCoverage? coverage) =>
+        result.EvaluatedRuleCodes.Contains("SM-002", StringComparer.OrdinalIgnoreCase) &&
+        coverage?.Sm002Inspection is not null && coverage?.Sm002Assessment is not null;
 
     private void WriteGroupedFindings(ModelQualityAuditResult result)
     {

@@ -37,6 +37,13 @@ public sealed record ModelAuditCoverage(
     /// quality findings or change the existing classification coverage gate.
     /// </summary>
     public MeasureFormattingAssessmentSummary? Sm002Assessment { get; init; }
+
+    /// <summary>
+    /// Metadata presence across ALL measures, with format breakdown for visible
+    /// measures. Inspection is independent of numeric type classification.
+    /// Available only when SM-002 was evaluated.
+    /// </summary>
+    public MeasureInspectionSummary? Sm002Inspection { get; init; }
 }
 
 public static class ModelAuditCoverageAnalyzer
@@ -52,6 +59,7 @@ public static class ModelAuditCoverageAnalyzer
         var rules = new List<RuleObjectCoverage>();
         MeasureFormattingCoverage? formatting = null;
         MeasureFormattingAssessmentSummary? assessmentSummary = null;
+        MeasureInspectionSummary? inspectionSummary = null;
 
         var totalRelationships = snapshot.Relationships.Count;
         var activeRelationships = snapshot.Relationships.Count(relationship => relationship.IsActive);
@@ -65,6 +73,7 @@ public static class ModelAuditCoverageAnalyzer
         if (Evaluated("SM-002"))
         {
             var inspection = new MeasureInspectionEngine().Inspect(snapshot);
+            inspectionSummary = inspection.Summary;
             assessmentSummary = new MeasureFormattingAssessmentEngine().Assess(inspection).Summary;
             var counters = new int[Enum.GetValues<MeasureFormattingClassifier.Category>().Length];
             foreach (var measure in inspection.Measures)
@@ -97,6 +106,10 @@ public static class ModelAuditCoverageAnalyzer
             rules.Add(new RuleObjectCoverage("SM-004", inactiveRelationships, activeRelationships, totalRelationships));
         }
 
-        return new ModelAuditCoverage(rules, formatting) { Sm002Assessment = assessmentSummary };
+        return new ModelAuditCoverage(rules, formatting)
+        {
+            Sm002Assessment = assessmentSummary,
+            Sm002Inspection = inspectionSummary
+        };
     }
 }

@@ -146,6 +146,19 @@ exclusive. See [measure inspection](docs/measure-inspection-02.4.5.md).
 The newer metadata-inspection percentage must not be mistaken for numeric
 classification coverage.
 
+## Measure quality coverage in audit (Milestone 02.4.5.4)
+
+The compact `audit` summary now includes aggregate **MEASURE QUALITY** statistics
+when `SM-002` is evaluated: measures inspected, visible static/dynamic/missing
+format metadata, confirmed numeric-format warnings and ambiguous review items.
+`--details` adds a per-category **SM-002 REVIEW BREAKDOWN** without printing
+hundreds of unclassified measures. `--quiet` retains its original single-line
+contract. Counts are metadata evidence, not confirmation that formatting is
+semantically correct. The `--min-measure-coverage` threshold still measures
+numeric type classification rather than the ability to read format metadata.
+
+See [measure quality coverage](docs/measure-quality-coverage-02.4.5.4.md).
+
 ## Minimal audit output (Milestone 02.4.4)
 
 The `audit` command now defaults to a compact overview: project totals, gate
