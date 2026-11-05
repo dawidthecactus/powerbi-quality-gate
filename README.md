@@ -77,6 +77,8 @@ dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit e
 The bundled examples are **synthetic regression fixtures**, not reports that
 are guaranteed to open or refresh in Power BI Desktop.
 
+For detailed installation steps, see **[Getting started](docs/getting-started.md)**.
+
 ### Option B: standalone executable (when a release is available)
 
 Download `pbiq-win-x64.zip` or `pbiq-linux-x64.tar.gz` from
@@ -132,7 +134,7 @@ All commands take a `.pbip` file or a directory containing **exactly one**
 **Tip:** Add `--no-color` or set `NO_COLOR` for plain terminal logs. Leave it
 out when taking the **color** screenshots. The detailed audit includes model
 object locations, so do not paste its output into public issues without
-reviewing it first.
+reviewing it first. See the **[complete CLI reference](docs/commands.md)**.
 
 ## Understand the results
 
@@ -166,6 +168,7 @@ automatically a warning. PBIQ does not infer numeric types from DAX.
 | `2` | Unable to evaluate, bad input or incompatible options | Project discovery failed |
 
 **Exit `0` is not a DAX, refresh, performance or Power BI Desktop certification.**
+For the complete status guide, see **[Reading PBIQ output](docs/output-guide.md)**.
 
 ## Use it as a quality gate
 
@@ -188,7 +191,7 @@ dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit e
 
 For a GitHub Actions workflow, treat nonzero exit codes according to your
 policy. The project itself runs builds, tests and CLI regressions on **Windows
-and Ubuntu**. See [CI integration and exit-code policy](docs/quality-gate-ci.md).
+and Ubuntu**. See the **[ready-to-adapt GitHub Actions example](docs/ci-integration.md)**.
 
 ## Safety, scope and privacy
 
@@ -211,6 +214,10 @@ and Ubuntu**. See [CI integration and exit-code policy](docs/quality-gate-ci.md)
 
 | Guide | Read when you want to... |
 | --- | --- |
+| **[Getting started](docs/getting-started.md)** | Install or build PBIQ, verify a first run, and troubleshoot basic errors |
+| **[CLI command reference](docs/commands.md)** | Find every command mode, option and exit-code contract |
+| **[Output & coverage guide](docs/output-guide.md)** | Interpret PASS, warnings, Unknown types and SM-002 coverage |
+| **[CI integration](docs/ci-integration.md)** | Add a pinned PBIQ quality gate to GitHub Actions or local scripts |
 | [Project structure checks](docs/current-checks.md) | Understand `PBI-001`–`PBI-018` |
 | [TMDL and TOM inspector](docs/tom-inspector-preview.md) | Explore supported inspection modes |
 | [Measure inspection](docs/measure-inspection-02.4.5.md) | Understand static/dynamic/missing formats and type coverage |
