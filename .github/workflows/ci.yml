@@ -37,5 +37,37 @@ jobs:
       - name: Run unit tests
         run: dotnet test -c Release --no-build --no-restore
 
+      - name: Audit CLI exit-code contract (Windows and Linux)
+        shell: pwsh
+        run: |
+          $dll = Join-Path (Get-Location).Path 'src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll'
+          $stdout = Join-Path $env:RUNNER_TEMP 'pbiq-audit-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'pbiq-audit-stderr.txt'
+
+          $cases = @(
+            @{ Name = 'info-only default'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Expected = 0; Marker = 'PASS WITH ADVISORIES' }
+            @{ Name = 'info-only strict'; Path = 'examples/valid-pbir-tmdl'; Strict = $true; Expected = 0; Marker = 'PASS WITH ADVISORIES' }
+            @{ Name = 'warning default'; Path = 'examples/warning-pbir-tmdl'; Strict = $false; Expected = 0; Marker = 'PASS WITH ADVISORIES' }
+            @{ Name = 'warning strict'; Path = 'examples/warning-pbir-tmdl'; Strict = $true; Expected = 1; Marker = 'FAIL (WARNING POLICY)' }
+            @{ Name = 'bad PBIP structure'; Path = 'examples/invalid-pbip-shortcut'; Strict = $true; Expected = 1; Marker = 'STRUCTURE VALIDATION FAILED' }
+            @{ Name = 'missing project'; Path = 'examples/missing-project-does-not-exist'; Strict = $true; Expected = 2; Marker = 'PROJECT DISCOVERY FAILED' }
+          )
+
+          foreach ($case in $cases) {
+            $arguments = @($dll, 'audit', $case.Path, '--no-color')
+            if ($case.Strict) { $arguments += '--fail-on-warning' }
+            $process = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -Wait -PassThru -NoNewWindow `
+              -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            $stream = if ($case.Expected -eq 0) { $stdout } else { $stderr }
+            $text = Get-Content -LiteralPath $stream -Raw
+            if ($process.ExitCode -ne $case.Expected -or -not $text.Contains($case.Marker)) {
+              Write-Host "Case failed: $($case.Name); got exit $($process.ExitCode); expected $($case.Expected)"
+              Get-Content -LiteralPath $stdout
+              Get-Content -LiteralPath $stderr
+              throw "PBIQ CLI exit-code smoke test failed: $($case.Name)"
+            }
+            Write-Host "PASS $($case.Name): exit $($process.ExitCode)"
+          }
+
       - name: Verify formatting
         run: dotnet format whitespace --verify-no-changes --no-restore

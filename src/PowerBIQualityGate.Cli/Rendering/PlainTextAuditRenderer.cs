@@ -20,8 +20,9 @@ internal sealed class PlainTextAuditRenderer
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
     }
 
-    public void Render(string pbipPath, TomModelSnapshot snapshot, ModelQualityAuditResult result, int exitCode)
+    public void Render(string pbipPath, TomModelSnapshot snapshot, ModelQualityAuditResult result, QualityGateDecision decision)
     {
+        ArgumentNullException.ThrowIfNull(decision);
         WriteBrand();
         WriteSection("01", "PROJECT PROFILE");
         _writer.WriteLine($"  Project: {Path.GetFileName(pbipPath)}");
@@ -34,7 +35,9 @@ internal sealed class PlainTextAuditRenderer
         WriteSection("02", "RULE COVERAGE");
         _writer.WriteLine($"  {result.RulesEvaluated} rules evaluated  |  {Count(result.ErrorCount, "error", "errors")}  |  {Count(result.WarningCount, "warning", "warnings")}  |  {result.InformationCount} information");
         _writer.WriteLine($"  Rule codes: {string.Join("  /  ", result.EvaluatedRuleCodes)}");
-        _writer.WriteLine("  Default policy: warnings and information do not fail the audit.");
+        _writer.WriteLine(decision.FailOnWarning
+            ? "  Active policy: warnings block the audit; information does not."
+            : "  Default policy: warnings and information do not fail the audit.");
         _writer.WriteLine();
 
         WriteSection("03", "DIAGNOSTIC REPORT");
@@ -75,19 +78,22 @@ internal sealed class PlainTextAuditRenderer
         }
 
         WriteSection("04", "FINAL RESULT");
-        var verdict = result.Verdict switch
+        var verdict = decision.Outcome switch
         {
-            QualityAuditVerdict.Failed => "AUDIT: FAIL",
-            QualityAuditVerdict.Passed when result.Findings.Count > 0 => "AUDIT: PASS WITH ADVISORIES",
-            QualityAuditVerdict.Passed => "AUDIT: PASS",
+            QualityGateOutcome.Failed => "AUDIT: FAIL",
+            QualityGateOutcome.FailedOnWarnings => "AUDIT: FAIL (WARNING POLICY)",
+            QualityGateOutcome.PassedWithAdvisories => "AUDIT: PASS WITH ADVISORIES",
+            QualityGateOutcome.Passed => "AUDIT: PASS",
             _ => "AUDIT: NOT EVALUATED"
         };
 
         _writer.WriteLine($"  {verdict}");
         _writer.WriteLine($"  {Count(result.ErrorCount, "error", "errors")}  |  {Count(result.WarningCount, "warning", "warnings")}  |  {result.InformationCount} information");
-        _writer.WriteLine($"  {result.RulesEvaluated} checks evaluated  |  exit code: {exitCode}");
+        _writer.WriteLine($"  {result.RulesEvaluated} checks evaluated  |  exit code: {decision.ExitCode}");
         _writer.WriteLine("  Scope: metadata-only advisory rules; not a full model or DAX validation.");
-        _writer.WriteLine("  Warnings and information do not block the default quality gate.");
+        _writer.WriteLine(decision.FailOnWarning
+            ? "  Active policy: warnings block this run; information does not."
+            : "  Warnings and information do not block the default quality gate.");
     }
 
     public void RenderFailure(string inputPath, string title, string message, string why, string fix, int exitCode)

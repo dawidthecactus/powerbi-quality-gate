@@ -27,9 +27,15 @@ public static class AuditCommand
             Description = "Disable ANSI colors and control codes in audit output."
         };
 
+        var failOnWarningOption = new Option<bool>("--fail-on-warning")
+        {
+            Description = "Treat one or more Warning findings as a failing quality gate (exit code 1)."
+        };
+
         var command = new Command("audit", "Review a local TMDL semantic model using the SM quality rules.");
         command.Arguments.Add(pathArgument);
         command.Options.Add(noColorOption);
+        command.Options.Add(failOnWarningOption);
 
         command.SetAction(parseResult =>
         {
@@ -38,7 +44,7 @@ public static class AuditCommand
                           Environment.GetEnvironmentVariable("NO_COLOR") is not null;
             var output = ConsoleFactory.Create(Console.Out, noColor || Console.IsOutputRedirected);
             var errors = ConsoleFactory.Create(Console.Error, noColor || Console.IsErrorRedirected);
-            return Execute(path, output, errors);
+            return Execute(path, output, errors, parseResult.GetValue(failOnWarningOption));
         });
 
         return command;
@@ -48,7 +54,7 @@ public static class AuditCommand
     /// Execute an audit against a discovered PBIP entry point. Injecting the
     /// consoles keeps CLI behavior testable without replacing global streams.
     /// </summary>
-    public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors)
+    public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors, bool failOnWarning = false)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(errors);
@@ -128,15 +134,9 @@ public static class AuditCommand
             return 2;
         }
 
-        var exitCode = result.Verdict switch
-        {
-            QualityAuditVerdict.Passed => 0,
-            QualityAuditVerdict.Failed => 1,
-            _ => 2
-        };
-
-        var console = exitCode == 0 ? output : errors;
-        new ConsoleAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result, exitCode);
-        return exitCode;
+        var decision = new QualityGatePolicy(failOnWarning).Evaluate(result);
+        var console = decision.ExitCode == 0 ? output : errors;
+        new ConsoleAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result, decision);
+        return decision.ExitCode;
     }
 }

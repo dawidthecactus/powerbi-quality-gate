@@ -20,30 +20,43 @@ public sealed class ConsoleAuditRenderer
         _console = console ?? throw new ArgumentNullException(nameof(console));
     }
 
+    // Compatibility overload for existing render tests and callers.
+    public void Render(string pbipPath, TomModelSnapshot snapshot, ModelQualityAuditResult result, int exitCode)
+    {
+        var decision = new QualityGatePolicy().Evaluate(result);
+        if (decision.ExitCode != exitCode)
+        {
+            throw new ArgumentException("Exit code does not match the default quality gate policy.", nameof(exitCode));
+        }
+
+        Render(pbipPath, snapshot, result, decision);
+    }
+
     public void Render(
         string pbipPath,
         TomModelSnapshot snapshot,
         ModelQualityAuditResult result,
-        int exitCode)
+        QualityGateDecision decision)
     {
         ArgumentNullException.ThrowIfNull(pbipPath);
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(decision);
 
         // Plain/redirected output bypasses styled Spectre renderables entirely.
         // The --no-color contract is plain text, including for individual findings.
         if (!_console.Profile.Capabilities.Ansi)
         {
             new PlainTextAuditRenderer(_console.Profile.Out.Writer)
-                .Render(pbipPath, snapshot, result, exitCode);
+                .Render(pbipPath, snapshot, result, decision);
             return;
         }
 
         PbiqConsoleChrome.WriteBrand(_console, "SEMANTIC MODEL AUDIT / RULE PACK 01");
         WriteProfile(pbipPath, snapshot);
-        WriteCoverage(result);
+        WriteCoverage(result, decision);
         WriteFindings(result);
-        WriteFinalResult(result, exitCode);
+        WriteFinalResult(result, decision);
     }
 
     public void RenderFailure(
@@ -97,7 +110,7 @@ public sealed class ConsoleAuditRenderer
         _console.WriteLine();
     }
 
-    private void WriteCoverage(ModelQualityAuditResult result)
+    private void WriteCoverage(ModelQualityAuditResult result, QualityGateDecision decision)
     {
         PbiqConsoleChrome.WriteSection(_console, "02", "RULE COVERAGE");
         _console.MarkupLine(
@@ -107,7 +120,10 @@ public sealed class ConsoleAuditRenderer
             $"[{PbiqConsoleChrome.Muted}]{result.InformationCount} information[/]");
         _console.MarkupLine(
             $"  [{PbiqConsoleChrome.Muted}]Rule codes[/]  {Markup.Escape(string.Join("  ·  ", result.EvaluatedRuleCodes))}");
-        _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]Default policy: warnings and information do not fail the audit.[/]");
+        var policy = decision.FailOnWarning
+            ? "Active policy: warnings block the audit; information does not."
+            : "Default policy: warnings and information do not fail the audit.";
+        _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]{policy}[/]");
         _console.WriteLine();
     }
 
@@ -166,15 +182,15 @@ public sealed class ConsoleAuditRenderer
     private static string Count(int amount, string singular, string plural) =>
         $"{amount} {(amount == 1 ? singular : plural)}";
 
-    private void WriteFinalResult(ModelQualityAuditResult result, int exitCode)
+    private void WriteFinalResult(ModelQualityAuditResult result, QualityGateDecision decision)
     {
         PbiqConsoleChrome.WriteSection(_console, "04", "FINAL RESULT");
-        var (color, status, symbol) = result.Verdict switch
+        var (color, status, symbol) = decision.Outcome switch
         {
-            QualityAuditVerdict.Failed => (Red, "AUDIT: FAIL", "✕"),
-            QualityAuditVerdict.Passed when result.Findings.Count > 0 =>
-                (Amber, "AUDIT: PASS WITH ADVISORIES", "!"),
-            QualityAuditVerdict.Passed => (PbiqConsoleChrome.Mint, "AUDIT: PASS", "✓"),
+            QualityGateOutcome.Failed => (Red, "AUDIT: FAIL", "✕"),
+            QualityGateOutcome.FailedOnWarnings => (Red, "AUDIT: FAIL (WARNING POLICY)", "✕"),
+            QualityGateOutcome.PassedWithAdvisories => (Amber, "AUDIT: PASS WITH ADVISORIES", "!"),
+            QualityGateOutcome.Passed => (PbiqConsoleChrome.Mint, "AUDIT: PASS", "✓"),
             _ => (Amber, "AUDIT: NOT EVALUATED", "!")
         };
 
@@ -183,11 +199,14 @@ public sealed class ConsoleAuditRenderer
             $"[bold {Red}]{Count(result.ErrorCount, "error", "errors")}[/]   " +
             $"[bold {Amber}]{Count(result.WarningCount, "warning", "warnings")}[/]   " +
             $"[{PbiqConsoleChrome.Muted}]{result.InformationCount} information[/]\n" +
-            $"[{PbiqConsoleChrome.Muted}]{result.RulesEvaluated} checks evaluated  ·  exit code: {exitCode}[/]");
+            $"[{PbiqConsoleChrome.Muted}]{result.RulesEvaluated} checks evaluated  ·  exit code: {decision.ExitCode}[/]");
         _console.Write(new Panel(summary)
             .RoundedBorder()
             .BorderColor(Color.FromHex(color)));
         _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]Scope: metadata-only advisory rules; not a full model or DAX validation.[/]");
-        _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]Warnings and information do not block the default quality gate.[/]");
+        var policyNote = decision.FailOnWarning
+            ? "Active policy: warnings block this run; information does not."
+            : "Warnings and information do not block the default quality gate.";
+        _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]{policyNote}[/]");
     }
 }
