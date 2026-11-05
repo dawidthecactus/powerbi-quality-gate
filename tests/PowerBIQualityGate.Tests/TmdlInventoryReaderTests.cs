@@ -19,27 +19,29 @@ public sealed class TmdlInventoryReaderTests
     public void CountsTableObjectsAndRelationships()
     {
         using var folder = new TmdlFixture();
-        folder.Table("Sales.tmdl", """
-            table Sales
-            
-            	column 'Order ID'
-            		dataType: int64
-            	column Amount
-            		dataType: decimal
-            	measure Revenue = SUM(Sales[Amount])
-            	measure 'Revenue PY' =
-            		VAR previous = 1
-            		RETURN previous
-            	hierarchy 'By Region'
-            		level Region
-            """);
-        folder.Relationships("""
-            relationship 1234
-            	fromColumn: Sales[RegionId]
-            	toColumn: Region[Id]
-            relationship another
-            	fromColumn: Sales[CustomerId]
-            """);
+        folder.Table("Sales.tmdl", string.Join("\n", new[]
+        {
+            "table Sales",
+            "",
+            "\tcolumn 'Order ID'",
+            "\t\tdataType: int64",
+            "\tcolumn Amount",
+            "\t\tdataType: decimal",
+            "\tmeasure Revenue = SUM(Sales[Amount])",
+            "\tmeasure 'Revenue PY' =",
+            "\t\tVAR previous = 1",
+            "\t\tRETURN previous",
+            "\thierarchy 'By Region'",
+            "\t\tlevel Region"
+        }));
+        folder.Relationships(string.Join("\n", new[]
+        {
+            "relationship 1234",
+            "\tfromColumn: Sales[RegionId]",
+            "\ttoColumn: Region[Id]",
+            "relationship another",
+            "\tfromColumn: Sales[CustomerId]"
+        }));
 
         var result = new TmdlInventoryReader().Read(folder.Path);
 
@@ -56,12 +58,13 @@ public sealed class TmdlInventoryReaderTests
     public void HandlesQuotedNamesAndAdditionalColumnTypes()
     {
         using var folder = new TmdlFixture();
-        folder.Table("Sales.tmdl", """
-            table 'Sales by Date'
-            	calculatedColumn Quarter = QUARTER([Date])
-            	calculatedTableColumn Label
-            	measure 'Net Profit' = 42
-            """);
+        folder.Table("Sales.tmdl", string.Join("\n", new[]
+        {
+            "table 'Sales by Date'",
+            "\tcalculatedColumn Quarter = QUARTER([Date])",
+            "\tcalculatedTableColumn Label",
+            "\tmeasure 'Net Profit' = 42"
+        }));
 
         var result = new TmdlInventoryReader().Read(folder.Path);
 
