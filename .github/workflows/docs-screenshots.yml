@@ -1,0 +1,62 @@
+name: Docs screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture authentic CLI screenshots (Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout public examples and screenshot tapes
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build the real CLI
+        run: |
+          dotnet restore
+          dotnet build -c Release --no-restore -warnaserror
+
+      - name: Install VHS terminal recorder
+        uses: charmbracelet/vhs-action@v2.1.1
+        with:
+          path: ''
+          version: 'v0.12.1'
+          install-fonts: false
+
+      - name: Capture four real terminal frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Empty NO_COLOR is also interpreted as disabled color by the CLI.
+          unset NO_COLOR
+          export TERM=xterm-256color
+          export COLORTERM=truecolor
+          mkdir -p assets/screenshots assets/demos
+          vhs validate assets/vhs/*.tape
+          for tape in \
+            assets/vhs/scan.tape \
+            assets/vhs/inspect-measures.tape \
+            assets/vhs/audit-summary.tape \
+            assets/vhs/audit-warning.tape; do
+            echo "Rendering $tape"
+            vhs "$tape"
+          done
+          python3 scripts/verify-terminal-screenshots.py assets/screenshots
+          rm -f assets/demos/.capture-*.gif
+
+      - name: Upload screenshots for human review
+        uses: actions/upload-artifact@v4
+        with:
+          name: pbiq-terminal-screenshots
+          path: assets/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
