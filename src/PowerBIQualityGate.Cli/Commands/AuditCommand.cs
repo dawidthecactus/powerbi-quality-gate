@@ -189,6 +189,20 @@ public static class AuditCommand
         }
 
         var coverage = ModelAuditCoverageAnalyzer.Analyze(snapshot, result);
+        var inconsistencies = MeasureQualityConsistencyValidator.Validate(snapshot, result, coverage);
+        if (inconsistencies.Count > 0)
+        {
+            // Never publish a potentially contradictory PASS verdict or leak
+            // object names in internal consistency diagnostics.
+            new CompactAuditRenderer(errors).RenderFailure(
+                discovery.PbipPath!,
+                "MEASURE QUALITY INTEGRITY FAILED",
+                $"SM-002 aggregate invariants failed: {string.Join(", ", inconsistencies)}.",
+                "The audit's measure-quality metadata cannot be trusted.",
+                "Review the inspector and assessment calculations before rerunning the audit.",
+                exitCode: 2, mode: mode);
+            return 2;
+        }
         var decision = new CoverageAwareGatePolicy(failOnWarning, minimumMeasureCoverage)
             .Evaluate(result, coverage);
         var console = decision.ExitCode == 0 ? output : errors;

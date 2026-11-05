@@ -191,6 +191,25 @@ routing are unchanged. See [minimal terminal experience](docs/minimal-terminal-e
 `pbiq scan` retains its original structural exit-code contract. An audit
 with exit `0` is **not** a full-model or DAX certification.
 
+## Real-world validation (Milestone 02.4.5.5)
+
+Run the privacy-safe measure-quality consistency and performance checks across
+multiple local TMDL-backed PBIP files with PowerShell 7:
+
+```powershell
+./scripts/validate-measure-quality.ps1 -ProjectPaths @($aviation, $nc, $nielsen) -Aliases @('Aviation', 'NC', 'Nielsen') -Iterations 5
+```
+
+The runner cross-checks `inspect --measures`, `audit --no-color` and
+`audit --quiet`, repeats each model to detect unstable aggregate results,
+reports median/p95 end-to-end timings and writes **only an alias-based aggregate
+CSV** outside the repository. The CLI also checks internal SM-002 accounting
+invariants before reporting a successful audit. See
+[real-world hardening](docs/measure-hardening-02.4.5.5.md) for interpretation,
+privacy safeguards and acceptance criteria. Real customer model files and full
+CLI output must never be published.
+
+
 ## Included examples
 
 - [`valid-pbir-tmdl`](examples/valid-pbir-tmdl): minimal TOM/structural baseline,

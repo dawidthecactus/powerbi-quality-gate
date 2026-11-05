@@ -125,5 +125,14 @@ jobs:
             Write-Host "PASS $($case.Name): exit $($process.ExitCode)"
           }
 
+      - name: Measure quality real-world regression (public examples)
+        shell: pwsh
+        run: |
+          ./scripts/validate-measure-quality.ps1 `
+            -ProjectPaths @('examples/valid-pbir-tmdl/Example.pbip', 'examples/warning-pbir-tmdl/Example.pbip') `
+            -Aliases @('Baseline', 'Warning') `
+            -Iterations 2 -Warmups 0 `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP 'pbiq-measure-validation')
+
       - name: Verify formatting
         run: dotnet format whitespace --verify-no-changes --no-restore
