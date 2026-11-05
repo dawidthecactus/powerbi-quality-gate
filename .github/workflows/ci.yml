@@ -53,12 +53,18 @@ jobs:
             @{ Name = 'coverage zero'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Coverage = 0; Expected = 0; Marker = 'PASS WITH COVERAGE GAPS' }
             @{ Name = 'coverage invalid'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Coverage = 101; Expected = 2; Marker = 'INVALID COVERAGE THRESHOLD' }
             @{ Name = 'bad PBIP structure'; Path = 'examples/invalid-pbip-shortcut'; Strict = $true; Expected = 1; Marker = 'STRUCTURE VALIDATION FAILED' }
+            @{ Name = 'summary with grouped details'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Details = $true; Expected = 0; Marker = 'FINDINGS BY RULE' }
+            @{ Name = 'one-line quiet success'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Quiet = $true; Expected = 0; Marker = 'PBIQ | AUDIT: PASS WITH COVERAGE GAPS' }
+            @{ Name = 'one-line quiet warning failure'; Path = 'examples/warning-pbir-tmdl'; Strict = $true; Quiet = $true; Expected = 1; Marker = 'PBIQ | AUDIT: FAIL (WARNING POLICY)' }
+            @{ Name = 'conflicting output modes'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Quiet = $true; Details = $true; Expected = 2; Marker = 'INVALID OUTPUT MODE' }
             @{ Name = 'missing project'; Path = 'examples/missing-project-does-not-exist'; Strict = $true; Expected = 2; Marker = 'PROJECT DISCOVERY FAILED' }
           )
 
           foreach ($case in $cases) {
             $arguments = @($dll, 'audit', $case.Path, '--no-color')
             if ($case.Strict) { $arguments += '--fail-on-warning' }
+            if ($case.ContainsKey('Details') -and $case.Details) { $arguments += '--details' }
+            if ($case.ContainsKey('Quiet') -and $case.Quiet) { $arguments += '--quiet' }
             if ($case.ContainsKey('Coverage')) { $arguments += @('--min-measure-coverage', [string]$case.Coverage) }
             $process = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -Wait -PassThru -NoNewWindow `
               -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -69,6 +75,12 @@ jobs:
               Get-Content -LiteralPath $stdout
               Get-Content -LiteralPath $stderr
               throw "PBIQ CLI exit-code smoke test failed: $($case.Name)"
+            }
+            if ($case.ContainsKey('Quiet') -and $case.Quiet -and
+                -not ($case.ContainsKey('Details') -and $case.Details)) {
+              $lines = @(Get-Content -LiteralPath $stream)
+              if ($lines.Count -ne 1) { throw "Quiet output is not one line: $($case.Name)" }
+              if ($text.Contains([char]27)) { throw "Quiet output contains ESC: $($case.Name)" }
             }
             Write-Host "PASS $($case.Name): exit $($process.ExitCode)"
           }

@@ -26,9 +26,14 @@ public sealed class AuditCommandTests
         var exitCode = AuditCommand.Execute(ExamplePath("valid-pbir-tmdl"), output, errors);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("4 rules evaluated", output.Output);
+        Assert.Contains("4 rules", output.Output);
+        Assert.Contains("SM-001", output.Output);
+        Assert.Contains("SM-002", output.Output);
         Assert.Contains("SM-003", output.Output);
-        Assert.Contains("Sales[ProductId]", output.Output);
+        Assert.Contains("SM-004", output.Output);
+        // The default audit summarizes findings without printing model objects.
+        Assert.False(output.Output.Contains("Sales[ProductId]", StringComparison.Ordinal));
+        Assert.Contains("--details", output.Output);
         Assert.Contains("AUDIT: PASS WITH COVERAGE GAPS", output.Output);
         Assert.Equal(string.Empty, errors.Output);
     }

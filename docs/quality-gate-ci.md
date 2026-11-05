@@ -111,3 +111,13 @@ DLL timestamps cause incremental build results to look stale.
 The strict warning and coverage policies are independent optional switches. Rule-by-rule suppression,
 configurable profiles, SARIF and JSON exports, DAX analysis, full PBIP schema
 validation, and a hardened build/test release remain separate future work.
+
+## Compact audit modes (02.4.4)
+
+`pbiq audit` prints a short overview by default. Add `--details` to list
+individual findings grouped by rule, with shared guidance once per group.
+For single-line, unstyled status output, use `--quiet`. The two flags are
+mutually exclusive (exit `2`). Existing `--no-color`, environment `NO_COLOR`,
+`--fail-on-warning`, and `--min-measure-coverage` are compatible with both
+modes, and retain their previous exit-code contract. CI smoke tests cover all
+three output modes on Windows and Ubuntu.

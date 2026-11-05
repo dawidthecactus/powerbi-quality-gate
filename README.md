@@ -97,8 +97,10 @@ dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit e
 $LASTEXITCODE # 1: strict warning policy blocks
 ```
 
-Findings include rule codes, model-object locations, **WHY IT MATTERS** and
-**HOW TO FIX**. Colors can be disabled with `--no-color` or `NO_COLOR`.
+The compact default lists finding counts and coverage. Add `--details` for
+rule-grouped model-object locations, **WHY IT MATTERS** and **HOW TO FIX**;
+add `--quiet` for a single status line. Colors can be disabled with
+`--no-color` or `NO_COLOR`.
 Redirected output is plain text. See [console output](docs/console-output.md)
 and [audit terminal experience](docs/audit-terminal-experience.md).
 
@@ -116,6 +118,27 @@ $LASTEXITCODE # 1: sample measure types are Unknown, so SM-002 coverage is below
 No minimum is enforced by default. The threshold is a whole percent from 0 to
 100, and it can be used together with `--fail-on-warning`. See
 [coverage-aware gate](docs/coverage-aware-gate-02.4.3.md).
+
+## Minimal audit output (Milestone 02.4.4)
+
+The `audit` command now defaults to a compact overview: project totals, gate
+verdict, finding counts grouped by rule, SM-002 measure-type coverage and active
+policy. It does not enumerate confidential object locations or repeat remediation
+text. To access every finding, use the opt-in detailed view. To get one plain
+line for shell scripts, use quiet mode:
+
+```powershell
+dotnet run --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl
+dotnet run --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --details
+dotnet run --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --quiet
+```
+
+`--details` groups findings by rule and prints affected locations plus WHY/HOW
+once per identical guidance group. `--quiet` always emits a single plain-text
+line, without ANSI codes or project metadata. `--details` and `--quiet` are
+mutually exclusive (exit `2`). `--no-color`, `NO_COLOR`, `--fail-on-warning`
+and `--min-measure-coverage` continue to work; gate exit codes and stdout/stderr
+routing are unchanged. See [minimal terminal experience](docs/minimal-terminal-experience-02.4.4.md).
 
 ### Exit codes for `pbiq audit`
 
