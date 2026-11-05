@@ -30,7 +30,14 @@ public sealed record MeasureFormattingCoverage(
 /// </summary>
 public sealed record ModelAuditCoverage(
     IReadOnlyList<RuleObjectCoverage> Rules,
-    MeasureFormattingCoverage? MeasureFormatting);
+    MeasureFormattingCoverage? MeasureFormatting)
+{
+    /// <summary>
+    /// Conservative SM-002 assessment summary. Review counts do not generate
+    /// quality findings or change the existing classification coverage gate.
+    /// </summary>
+    public MeasureFormattingAssessmentSummary? Sm002Assessment { get; init; }
+}
 
 public static class ModelAuditCoverageAnalyzer
 {
@@ -44,6 +51,7 @@ public static class ModelAuditCoverageAnalyzer
 
         var rules = new List<RuleObjectCoverage>();
         MeasureFormattingCoverage? formatting = null;
+        MeasureFormattingAssessmentSummary? assessmentSummary = null;
 
         var totalRelationships = snapshot.Relationships.Count;
         var activeRelationships = snapshot.Relationships.Count(relationship => relationship.IsActive);
@@ -56,13 +64,12 @@ public static class ModelAuditCoverageAnalyzer
 
         if (Evaluated("SM-002"))
         {
+            var inspection = new MeasureInspectionEngine().Inspect(snapshot);
+            assessmentSummary = new MeasureFormattingAssessmentEngine().Assess(inspection).Summary;
             var counters = new int[Enum.GetValues<MeasureFormattingClassifier.Category>().Length];
-            foreach (var table in snapshot.Tables)
+            foreach (var measure in inspection.Measures)
             {
-                foreach (var measure in table.Measures)
-                {
-                    counters[(int)MeasureFormattingClassifier.Classify(table, measure)]++;
-                }
+                counters[(int)MeasureFormattingClassifier.Classify(measure)]++;
             }
 
             formatting = new MeasureFormattingCoverage(
@@ -90,6 +97,6 @@ public static class ModelAuditCoverageAnalyzer
             rules.Add(new RuleObjectCoverage("SM-004", inactiveRelationships, activeRelationships, totalRelationships));
         }
 
-        return new ModelAuditCoverage(rules, formatting);
+        return new ModelAuditCoverage(rules, formatting) { Sm002Assessment = assessmentSummary };
     }
 }

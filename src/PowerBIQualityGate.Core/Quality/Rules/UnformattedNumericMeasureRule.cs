@@ -5,8 +5,9 @@ using PowerBIQualityGate.Core.Validation;
 namespace PowerBIQualityGate.Core.Quality.Rules;
 
 /// <summary>
-/// Reports visible, known numeric measures without static or dynamic model-level formatting.
-/// Unknown/variant types are intentionally skipped: DAX is not evaluated by this tool.
+/// SM-002 warns only when numeric type and missing model-level formatting are
+/// both confirmed by metadata. Unknown types and unverified dynamic format
+/// definitions are collected for review, never treated as warnings.
 /// </summary>
 public sealed class UnformattedNumericMeasureRule : IModelQualityRule
 {
@@ -18,15 +19,14 @@ public sealed class UnformattedNumericMeasureRule : IModelQualityRule
     {
         ArgumentNullException.ThrowIfNull(model);
 
-        return model.Tables
-            .SelectMany(table => table.Measures
-                .Where(measure => MeasureFormattingClassifier.Classify(table, measure) ==
-                    MeasureFormattingClassifier.Category.Unformatted)
-                .Select(measure => new ModelQualityIssue(
-                    $"{table.Name}[{measure.Name}]",
-                    $"Numeric measure '{measure.Name}' has no model-level format string.",
-                    "Without an explicit format, numbers can display inconsistently across reports and visuals.",
-                    "Set an appropriate format string or a dynamic format-string expression on the measure in the semantic model.")))
+        var assessment = new MeasureFormattingAssessmentEngine().Assess(model);
+        return assessment.Measures
+            .Where(item => item.Kind == MeasureFormattingAssessmentKind.KnownNumericMissingFormat)
+            .Select(item => new ModelQualityIssue(
+                $"{item.TableName}[{item.MeasureName}]",
+                $"Numeric measure '{item.MeasureName}' has no model-level format string.",
+                "Without an explicit format, numbers can display inconsistently across reports and visuals.",
+                "Set an appropriate format string or a dynamic format-string expression on the measure in the semantic model."))
             .ToArray();
     }
 }

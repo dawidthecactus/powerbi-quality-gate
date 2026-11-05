@@ -24,6 +24,10 @@ analysis and automated build checks.
 - Audit TOM-derived metadata with `SM-001`–`SM-004`:
   bidirectional relationships, visible numeric-measure formatting, visible
   technical columns and inactive relationships.
+- Assess SM-002 formatting evidence separately from TOM type inference:
+  confirmed missing formats on known numeric measures remain warnings, while
+  ambiguous missing formats on unknown types are tracked for review rather
+  than reported as false-positive warnings.
 - Enable `audit --fail-on-warning` to block on warnings in CI.
 - Show `PASS WITH COVERAGE GAPS` for unclassified measure types and optionally
   enforce `audit --min-measure-coverage 95` in CI.
@@ -32,7 +36,8 @@ analysis and automated build checks.
 - Run read-only and offline, with structured exit codes and `--no-color` output.
 - Test on Windows and Ubuntu through GitHub Actions.
 
-See [audit coverage](docs/audit-coverage-02.4.2.md),
+See [SM-002 assessment model](docs/sm-002-rule-refactor-02.4.5.3.md),
+[audit coverage](docs/audit-coverage-02.4.2.md),
 [quality gate policies](docs/quality-gate-ci.md),
 [rule definitions](docs/first-rule-pack.md),
 [current structural checks](docs/current-checks.md), and

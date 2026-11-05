@@ -3,8 +3,9 @@ using PowerBIQualityGate.Core.Inspection;
 namespace PowerBIQualityGate.Core.Quality;
 
 /// <summary>
-/// Shared SM-002 eligibility predicate. Coverage and findings must classify
-/// measures identically; no DAX expression is parsed or executed here.
+/// Legacy SM-002 coverage categories retained for the existing CI threshold.
+/// Uses the same normalized evidence as MeasureFormattingAssessmentEngine;
+/// coverage is still TYPE classification coverage, not formatting validity.
 /// </summary>
 internal static class MeasureFormattingClassifier
 {
@@ -18,45 +19,23 @@ internal static class MeasureFormattingClassifier
         Unformatted
     }
 
-    internal static Category Classify(TomTableSnapshot table, TomMeasureSnapshot measure)
+    internal static Category Classify(InspectedMeasure measure)
     {
-        if (table.IsHidden || measure.IsHidden)
+        if (!measure.IsVisible)
         {
             return Category.Hidden;
         }
 
-        if (IsNumeric(measure.DataType))
+        return measure.DataTypeKind switch
         {
-            // A dynamic format is authoritative even if a static fallback is present.
-            if (measure.HasDynamicFormatString)
+            MeasureDataTypeKind.Numeric => measure.FormatKind switch
             {
-                return Category.FormattedDynamic;
-            }
-
-            return string.IsNullOrWhiteSpace(measure.FormatString)
-                ? Category.Unformatted
-                : Category.FormattedStatic;
-        }
-
-        // Only these known TOM types are treated as nonnumeric by this rule.
-        // Unexpected/variant/unknown types remain unclassified rather than
-        // being incorrectly counted as checked or as definitely nonnumeric.
-        return IsKnownNonNumeric(measure.DataType)
-            ? Category.NonNumeric
-            : Category.UnknownType;
+                MeasureFormatKind.Static => Category.FormattedStatic,
+                MeasureFormatKind.Dynamic => Category.FormattedDynamic,
+                _ => Category.Unformatted
+            },
+            MeasureDataTypeKind.NonNumeric => Category.NonNumeric,
+            _ => Category.UnknownType
+        };
     }
-
-    private static bool IsNumeric(string? value) =>
-        EqualsType(value, "Int64") ||
-        EqualsType(value, "Decimal") ||
-        EqualsType(value, "Double");
-
-    private static bool IsKnownNonNumeric(string? value) =>
-        EqualsType(value, "String") ||
-        EqualsType(value, "Boolean") ||
-        EqualsType(value, "DateTime") ||
-        EqualsType(value, "Binary");
-
-    private static bool EqualsType(string? value, string expected) =>
-        string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
 }
