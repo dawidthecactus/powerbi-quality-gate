@@ -13,6 +13,7 @@ public static class CliApplication
 
         rootCommand.Subcommands.Add(ScanCommand.Create());
         rootCommand.Subcommands.Add(InspectCommand.Create());
+        rootCommand.Subcommands.Add(AuditCommand.Create());
 
         return rootCommand;
     }
