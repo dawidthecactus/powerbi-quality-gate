@@ -1,57 +1,91 @@
-# Power BI Quality Gate
+<div align="center">
+
+# 🌵 PBIQ
+
+### Power BI Quality Gate
+
+**Scan PBIP structure. Inspect TMDL metadata. Gate semantic-model quality.**
+
+An offline, read-only CLI for Power BI Project (`.pbip`) files, built for analysts,
+BI developers and CI pipelines.
 
 [![CI](https://github.com/dawidthecactus/powerbi-quality-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/dawidthecactus/powerbi-quality-gate/actions/workflows/ci.yml)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![Windows and Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-374151)
+[![MIT](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
+![Release candidate](https://img.shields.io/badge/current%20source-0.2.0--rc.1-f59e0b)
 
-**A read-only command-line quality gate for Power BI Project (`.pbip`) files.**
+**[Quick start](#quick-start) · [Commands](#three-commands-one-workflow) · [Quality gates](#use-it-as-a-quality-gate) · [Docs](#documentation)**
 
-`pbiq` validates PBIP project structure, inspects local TMDL metadata with
-Microsoft TOM, and runs four transparent semantic-model quality rules with
-**WHY IT MATTERS** and **HOW TO FIX** guidance. It is designed for offline
-analysis and automated build checks.
+</div>
 
-> **Early development (v0.1.x).** `scan` covers structural checks, while `audit`
-> runs a limited **metadata-only** rule pack. Neither command validates DAX,
-> refreshes data, or guarantees that a Power BI Desktop model works correctly.
+> [!IMPORTANT]
+> **Release status:** the source currently targets `0.2.0-rc.1`. The Windows/Linux
+> packages have passed an Actions dry run, but **v0.2.0 has not been published
+> as a GitHub Release**. Build from source to try the latest functionality, or
+> use a temporary artifact from a successful [Release workflow](https://github.com/dawidthecactus/powerbi-quality-gate/actions/workflows/release.yml)
+> (GitHub sign-in may be required). Do not confuse a dry-run artifact with an
+> official release.
 
-## What works today
+## See what PBIQ does
 
-- Find a `.pbip` entry point in a file path or a directory containing one PBIP.
-- Parse a PBIP shortcut, validate local report/project structure and JSON files.
-- Detect local TMDL/TMSL or external semantic-model references.
-- Display the shared branded PBIQ terminal report with stable `PBI-001`–`PBI-018` diagnostics.
-- Inspect a local TMDL model using the Microsoft TOM serializer (`inspect --tom`).
-- Inventory formatting and TOM data types of every measure with privacy-safe `inspect --measures` (without DAX evaluation).
-- Audit TOM-derived metadata with `SM-001`–`SM-004`:
-  bidirectional relationships, visible numeric-measure formatting, visible
-  technical columns and inactive relationships.
-- Assess SM-002 formatting evidence separately from TOM type inference:
-  confirmed missing formats on known numeric measures remain warnings, while
-  ambiguous missing formats on unknown types are tracked for review rather
-  than reported as false-positive warnings.
-- Enable `audit --fail-on-warning` to block on warnings in CI.
-- Show `PASS WITH COVERAGE GAPS` for unclassified measure types and optionally
-  enforce `audit --min-measure-coverage 95` in CI.
-- Inspect per-rule **OBJECT COVERAGE**, including evaluated/omitted model objects
-  and why `SM-002` skipped unknown TOM measure types.
-- Run read-only and offline, with structured exit codes and `--no-color` output.
-- Test on Windows and Ubuntu through GitHub Actions.
+One tool, three levels of feedback:
 
-See [SM-002 assessment model](docs/sm-002-rule-refactor-02.4.5.3.md),
-[audit coverage](docs/audit-coverage-02.4.2.md),
-[quality gate policies](docs/quality-gate-ci.md),
-[rule definitions](docs/first-rule-pack.md),
-[current structural checks](docs/current-checks.md), and
-[TOM inspector details](docs/tom-inspector-preview.md).
+| | Command | What you learn |
+| :-- | :-- | :-- |
+| **01** | `scan` | Is the PBIP project structure valid? |
+| **02** | `inspect` | What does the local TMDL semantic model contain? |
+| **03** | `audit` | Which metadata quality rules need attention, and should CI block? |
 
-## Install a standalone CLI
+A real, synthetic-fixture example of the **single-line CI output**:
 
-**Once the next GitHub Release is published**, download the matching archive
-from [Releases](https://github.com/dawidthecactus/powerbi-quality-gate/releases).
-The 64-bit self-contained archives require no locally installed .NET runtime.
-The existing v0.1.x release artifacts may predate the latest `audit` command:
-**build from source for current development functionality**.
+```text
+$ pbiq audit examples/valid-pbir-tmdl --quiet
+PBIQ | AUDIT: PASS WITH COVERAGE GAPS | 0 errors, 0 warnings, 3 information | exit code: 0
+```
 
-**Windows x64 (PowerShell):**
+`PASS WITH COVERAGE GAPS` is intentionally not the same as “everything is
+correct.” Some measure types remain `Unknown` in offline TOM, so numeric-format
+applicability cannot always be confirmed. See [how to interpret the output](#understand-the-results).
+
+<!-- MEDIA SLOT (02.5.3.3 / 02.5.3.4):
+     Insert a real, sanitized, COLOR terminal screenshot or GIF here when it
+     exists in assets/. Do not link to a missing file. The source of truth is
+     docs/readme-media-plan-02.5.3.1.md.
+     Target: assets/demos/pbiq-quick-tour.gif (or a static scan hero PNG).
+-->
+
+## Quick start
+
+### Option A: build the current release candidate from source
+
+Requires [Git](https://git-scm.com/) and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
+Run these commands from PowerShell 7 or a shell with `dotnet` available:
+
+```powershell
+git clone https://github.com/dawidthecactus/powerbi-quality-gate.git
+cd powerbi-quality-gate
+
+dotnet restore
+dotnet build -c Release
+
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- inspect examples/valid-pbir-tmdl --measures
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --quiet
+```
+
+The bundled examples are **synthetic regression fixtures**, not reports that
+are guaranteed to open or refresh in Power BI Desktop.
+
+### Option B: standalone executable (when a release is available)
+
+Download `pbiq-win-x64.zip` or `pbiq-linux-x64.tar.gz` from
+[GitHub Releases](https://github.com/dawidthecactus/powerbi-quality-gate/releases)
+**after** a release is published. These are self-contained x64 builds and do
+not require a .NET runtime on the target machine.
+
+<details>
+<summary><strong>Windows x64 (PowerShell)</strong></summary>
 
 ```powershell
 Expand-Archive .\pbiq-win-x64.zip -DestinationPath .\pbiq -Force
@@ -60,7 +94,10 @@ Expand-Archive .\pbiq-win-x64.zip -DestinationPath .\pbiq -Force
 $LASTEXITCODE
 ```
 
-**Linux x64:**
+</details>
+
+<details>
+<summary><strong>Linux x64 (bash)</strong></summary>
 
 ```bash
 mkdir -p pbiq
@@ -70,218 +107,130 @@ tar -xzf pbiq-linux-x64.tar.gz -C pbiq
 echo $?
 ```
 
-macOS and ARM64 standalone packages are not available yet. See the
-[release process](docs/release-process.md).
+</details>
 
-## Build and run from source
+macOS and ARM64 standalone distributions are **not yet available**.
+See the [release process](docs/release-process.md) for packaging, checksums,
+and the candidate-to-stable release policy.
 
-Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-and Git.
+## Three commands, one workflow
 
-```powershell
-git clone https://github.com/dawidthecactus/powerbi-quality-gate.git
-cd powerbi-quality-gate
-dotnet restore
-dotnet build -c Release
+All commands take a `.pbip` file or a directory containing **exactly one**
+`.pbip` entry point. Replace `<path>` with your own project path.
 
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- --help
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- scan examples/valid-pbir-tmdl
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- inspect examples/valid-pbir-tmdl --tom
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl
-```
+| Command | Purpose | Useful options |
+| --- | --- | --- |
+| `pbiq scan <path>` | PBIP discovery, report/model references and implemented structural checks (`PBI-001`–`PBI-018`) | `--no-color` |
+| `pbiq inspect <path>` | Lightweight, local TMDL declaration inventory | `--no-color` |
+| `pbiq inspect <path> --tom` | Semantic-model metadata through the official Microsoft TOM reader | `--no-color` |
+| `pbiq inspect <path> --measures` | Privacy-conscious **aggregate** measure formatting and type inventory | `--no-color` |
+| `pbiq audit <path>` | Four semantic-model metadata checks (`SM-001`–`SM-004`) | `--details`, `--quiet`, `--fail-on-warning`, `--min-measure-coverage 95`, `--no-color` |
 
-### Warning-based quality gates
+`inspect --tom` and `inspect --measures` cannot be used together.
+`audit --quiet` and `audit --details` are also mutually exclusive.
 
-A separate synthetic example contains a bidirectional relationship that
-triggers `SM-001` Warning:
+**Tip:** Add `--no-color` or set `NO_COLOR` for plain terminal logs. Leave it
+out when taking the **color** screenshots. The detailed audit includes model
+object locations, so do not paste its output into public issues without
+reviewing it first.
 
-```powershell
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/warning-pbir-tmdl
-$LASTEXITCODE # 0: advisory by default
+## Understand the results
 
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/warning-pbir-tmdl --fail-on-warning --no-color
-$LASTEXITCODE # 1: strict warning policy blocks
-```
-
-The compact default lists finding counts and coverage. Add `--details` for
-rule-grouped model-object locations, **WHY IT MATTERS** and **HOW TO FIX**;
-add `--quiet` for a single status line. Colors can be disabled with
-`--no-color` or `NO_COLOR`.
-Redirected output is plain text. See [console output](docs/console-output.md)
-and [audit terminal experience](docs/audit-terminal-experience.md).
-
-### Coverage-aware audits
-
-`pbiq audit` reports when the offline TOM metadata did not classify a visible
-measure's type. The status `PASS WITH COVERAGE GAPS` is **not** a claim that
-its formatting is correct. Require a minimum classification rate for SM-002:
-
-```powershell
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --min-measure-coverage 95
-$LASTEXITCODE # 1: sample measure types are Unknown, so SM-002 coverage is below 95%
-```
-
-No minimum is enforced by default. The threshold is a whole percent from 0 to
-100, and it can be used together with `--fail-on-warning`. See
-[coverage-aware gate](docs/coverage-aware-gate-02.4.3.md).
-
-## Measure metadata inventory (Milestones 02.4.5.1 + 02.4.5.2)
-
-The new **read-only** inventory classifies each measure on two independent axes:
-format metadata (`Static`, `Dynamic`, `Missing`) and offline TOM data type
-(`Numeric`, `NonNumeric`, `Unknown`, `Unsupported`). Hidden measures are counted
-in the total but excluded from the visible-format/type breakdown. A present
-format does **not** prove that a measure is numeric or correctly formatted.
-
-```powershell
-dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- inspect examples/valid-pbir-tmdl --measures --no-color
-```
-
-This view prints only aggregate counts, without individual table/measure names,
-DAX expressions, or format-string values. `--measures` and `--tom` are mutually
-exclusive. See [measure inspection](docs/measure-inspection-02.4.5.md).
-
-**Important:** The existing SM-002 rule, `audit` verdicts and
-`--min-measure-coverage` policy are intentionally unchanged in this stage.
-The newer metadata-inspection percentage must not be mistaken for numeric
-classification coverage.
-
-## Measure quality coverage in audit (Milestone 02.4.5.4)
-
-The compact `audit` summary now includes aggregate **MEASURE QUALITY** statistics
-when `SM-002` is evaluated: measures inspected, visible static/dynamic/missing
-format metadata, confirmed numeric-format warnings and ambiguous review items.
-`--details` adds a per-category **SM-002 REVIEW BREAKDOWN** without printing
-hundreds of unclassified measures. `--quiet` retains its original single-line
-contract. Counts are metadata evidence, not confirmation that formatting is
-semantically correct. The `--min-measure-coverage` threshold still measures
-numeric type classification rather than the ability to read format metadata.
-
-See [measure quality coverage](docs/measure-quality-coverage-02.4.5.4.md).
-
-## Minimal audit output (Milestone 02.4.4)
-
-The `audit` command now defaults to a compact overview: project totals, gate
-verdict, finding counts grouped by rule, SM-002 measure-type coverage and active
-policy. It does not enumerate confidential object locations or repeat remediation
-text. To access every finding, use the opt-in detailed view. To get one plain
-line for shell scripts, use quiet mode:
-
-```powershell
-dotnet run --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl
-dotnet run --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --details
-dotnet run --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --quiet
-```
-
-`--details` groups findings by rule and prints affected locations plus WHY/HOW
-once per identical guidance group. `--quiet` always emits a single plain-text
-line, without ANSI codes or project metadata. `--details` and `--quiet` are
-mutually exclusive (exit `2`). `--no-color`, `NO_COLOR`, `--fail-on-warning`
-and `--min-measure-coverage` continue to work; gate exit codes and stdout/stderr
-routing are unchanged. See [minimal terminal experience](docs/minimal-terminal-experience-02.4.4.md).
-
-### Exit codes for `pbiq audit`
-
-| Code | Meaning |
+| Audit status | What it means |
 | --- | --- |
-| `0` | At least one rule evaluated and no blocking findings under the selected policy. |
-| `1` | Structural validation failed, Error finding reported, Warning finding blocked by `--fail-on-warning`, or SM-002 coverage below an explicitly configured minimum. |
-| `2` | Input/discovery/format/TOM/rule execution problem or no evaluated rules; audit not successfully evaluated. |
+| **PASS** | Evaluated rules did not report blocking findings under the selected policy. |
+| **PASS WITH COVERAGE GAPS** | No blocking finding, but some measure-type eligibility could not be determined from offline metadata. |
+| **FAIL (WARNING POLICY)** | `--fail-on-warning` is active and a Warning was found. |
+| **FAIL (COVERAGE POLICY)** | Measure-type classification coverage was below your explicit minimum. |
 
-`pbiq scan` retains its original structural exit-code contract. An audit
-with exit `0` is **not** a full-model or DAX certification.
+The four current metadata rules:
 
-## Real-world validation (Milestone 02.4.5.5)
+| Rule | Checks | Default severity |
+| --- | --- | --- |
+| `SM-001` | Active bidirectional relationships | Warning |
+| `SM-002` | Missing format on a **confirmed numeric** visible measure | Warning |
+| `SM-003` | Visible technical/key columns | Information |
+| `SM-004` | Inactive relationships | Information |
 
-Run the privacy-safe measure-quality consistency and performance checks across
-multiple local TMDL-backed PBIP files with PowerShell 7:
+For `SM-002`, the public example can have **2/2 measure formats inspected**
+but **0/2 candidate types classified**. These are different measurements. A
+format marked `Missing` for an unknown type is a *review item*, not
+automatically a warning. PBIQ does not infer numeric types from DAX.
 
-```powershell
-./scripts/validate-measure-quality.ps1 -ProjectPaths @($aviation, $nc, $nielsen) -Aliases @('Aviation', 'NC', 'Nielsen') -Iterations 5
-```
+### Exit codes
 
-The runner cross-checks `inspect --measures`, `audit --no-color` and
-`audit --quiet`, repeats each model to detect unstable aggregate results,
-reports median/p95 end-to-end timings and writes **only an alias-based aggregate
-CSV** outside the repository. The CLI also checks internal SM-002 accounting
-invariants before reporting a successful audit. See
-[real-world hardening](docs/measure-hardening-02.4.5.5.md) for interpretation,
-privacy safeguards and acceptance criteria. Real customer model files and full
-CLI output must never be published.
+| Code | `audit` | `scan` |
+| :--: | --- | --- |
+| `0` | Evaluated, no blocking finding under the chosen policy | Implemented structural checks passed |
+| `1` | Blocking finding/policy, or structural validation failure | Structural validation failed |
+| `2` | Unable to evaluate, bad input or incompatible options | Project discovery failed |
 
+**Exit `0` is not a DAX, refresh, performance or Power BI Desktop certification.**
 
-## Included examples
+## Use it as a quality gate
 
-- [`valid-pbir-tmdl`](examples/valid-pbir-tmdl): minimal TOM/structural baseline,
-  informational technical-key findings.
-- [`warning-pbir-tmdl`](examples/warning-pbir-tmdl): intentional SM-001 warning;
-  demonstrates `--fail-on-warning`.
-- [`invalid-pbip-shortcut`](examples/invalid-pbip-shortcut): broken PBIP shortcut,
-  structural validation failure.
-
-See [example descriptions](examples/README.md). The examples are synthetic,
-not full Power BI Desktop exports or refreshable models.
-
-## Architecture
-
-```text
-src/
-  PowerBIQualityGate.Cli/      # CLI commands and terminal renderers
-  PowerBIQualityGate.Core/     # Discovery, structure, TOM snapshots, quality rules and policy
-tests/
-  PowerBIQualityGate.Tests/    # xUnit tests using synthetic projects
-examples/                      # Baseline, warning and invalid PBIP fixtures
-docs/                          # Checks, rule catalog, CI usage and release guidance
-.github/workflows/
-  ci.yml                       # Build, tests, CLI exit-code smoke tests on Windows + Ubuntu
-  release.yml                  # Standalone packaging / release automation
-```
-
-## Development
+The default audit is advisory for Warnings. For stricter CI, opt into either
+policy independently or combine them:
 
 ```powershell
-dotnet restore
-dotnet build -c Release -warnaserror
-dotnet test -c Release
-dotnet format whitespace --verify-no-changes
-git diff --check
+# From a cloned source repository after dotnet build -c Release
+$project = 'examples/warning-pbir-tmdl'
+
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit $project --quiet
+# Advisory: warnings are reported, but do not block by default.
+
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit $project --fail-on-warning --no-color
+# Exit 1 for this synthetic fixture (intentional SM-001 warning).
+
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --min-measure-coverage 95 --quiet
+# Exit 1 because the sample's offline measure types are Unknown.
 ```
 
-GitHub Actions runs the checks on Windows and Ubuntu and verifies the exit
-codes from **real CLI processes**. See [CI policy guide](docs/quality-gate-ci.md).
+For a GitHub Actions workflow, treat nonzero exit codes according to your
+policy. The project itself runs builds, tests and CLI regressions on **Windows
+and Ubuntu**. See [CI integration and exit-code policy](docs/quality-gate-ci.md).
 
-## Limitations
+## Safety, scope and privacy
 
-- A `.pbip` shortcut is currently required. Standalone PBIR and Fabric Git
-  exports without `.pbip` are not supported.
-- Structural checking does not implement complete Microsoft JSON Schema.
-- TOM deserialization does not evaluate DAX or query results or refresh data.
-- The four quality rules are conservative review suggestions, not proof of a
-  model defect. Object coverage reports the actual metadata scope; numeric
-  formatting is skipped when the offline TOM type is unknown or unsupported.
-- External semantic models are not contacted or authenticated.
-- Path checks are lexical and not hardened against malicious symlinks or junctions.
+- **Read-only and offline:** no Power BI service sign-in, data refresh, model
+  writeback or DAX execution.
+- **Local TMDL required for `inspect` and `audit`:** standalone PBIR, TMSL,
+  external model connections and Fabric exports without `.pbip` are not
+  supported by those commands.
+- **Metadata checks, not a full validator:** structural checks do not implement
+  the entire Microsoft JSON Schema; the four SM rules are conservative,
+  inspectable suggestions, not proof of a model defect.
+- **Review output before sharing:** `scan` and detailed output can include
+  project paths and object names; `inspect --measures` avoids printing measure
+  names and DAX but still identifies the input project. Never commit private
+  PBIP/TMDL files or screenshots containing customer metadata.
+- **Path security:** file/path checks are lexical and not hardened against
+  hostile symlinks or junctions.
 
-## Roadmap
+## Documentation
 
-- [x] .NET CLI foundation and unit tests
-- [x] PBIP discovery and structural diagnostics
-- [x] Cross-platform GitHub Actions CI
-- [x] Branded terminal UI and guidance
-- [x] Basic TOM/TMDL semantic-model inspection
-- [x] First metadata rule pack and optional warning-based CI gate
-- [ ] Real-world Power BI Desktop export regression fixtures
-- [x] Explicitly report SM-002 coverage gaps and optional CI threshold
-- [ ] Per-rule configuration and suppression
-- [ ] Deeper DAX checks, JSON/SARIF reporting and policy profiles
-- [ ] Publish an updated standalone release with the current audit features
+| Guide | Read when you want to... |
+| --- | --- |
+| [Project structure checks](docs/current-checks.md) | Understand `PBI-001`–`PBI-018` |
+| [TMDL and TOM inspector](docs/tom-inspector-preview.md) | Explore supported inspection modes |
+| [Measure inspection](docs/measure-inspection-02.4.5.md) | Understand static/dynamic/missing formats and type coverage |
+| [Semantic-model rule pack](docs/first-rule-pack.md) | Read the `SM-001`–`SM-004` definitions |
+| [Audit output and explanations](docs/minimal-terminal-experience-02.4.4.md) | Interpret summary, details and quiet modes |
+| [Coverage-aware quality gate](docs/coverage-aware-gate-02.4.3.md) | Configure a minimum SM-002 classification rate |
+| [Real-world validation](docs/measure-hardening-02.4.5.5.md) | Benchmark local models without publishing their metadata |
+| [Release and checksum guide](docs/release-process.md) | Test/download self-contained builds |
+| [README media plan](docs/readme-media-plan-02.5.3.1.md) | Capture authentic color screenshots and terminal demos |
 
-Roadmap items describe direction, not guaranteed delivery dates.
+See also the [synthetic fixtures](examples/README.md),
+[contribution guide](CONTRIBUTING.md) and [MIT license](LICENSE).
 
 ## Contributing
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+PRs, bug reports and feature suggestions are welcome. Run `dotnet test -c
+Release` and `dotnet format whitespace --verify-no-changes` before submitting
+changes. Please use sanitized or synthetic models in public reproductions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
-## License
+---
 
-[MIT License](LICENSE).
+<p align="center"><sub>Built for practical Power BI quality checks, with transparent limits and reproducible results. 🌵</sub></p>
