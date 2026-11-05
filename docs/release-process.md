@@ -1,14 +1,18 @@
-# Release process (Milestone 01.8)
+# PBIQ release process: v0.2.0
 
-The release workflow is in `.github/workflows/release.yml`. It creates .NET 10
-self-contained single-file executables for 64-bit Windows and Linux. No .NET SDK
-or runtime is required on machines running these packages.
+The release workflow is `.github/workflows/release.yml`. The current candidate
+is `0.2.0-rc.1` (in the CLI `.csproj`). Release archives are .NET 10,
+self-contained, single-file, untrimmed executables for Windows x64 and Linux
+x64. No .NET SDK or runtime is required by the installed app.
 
-## Before the first tag
+For the 02.5.1/02.5.2 readiness changes and smoke cases, see
+[release readiness](release-readiness-02.5.1-2.md).
 
-1. Merge the workflow and documentation changes into `main`.
-2. Verify normal CI is green on Windows and Ubuntu.
-3. Start a **dry run** of the new workflow:
+## 1. Before creating a tag
+
+1. Commit the tested code and check normal CI on `main` is green on both OSes.
+2. Trigger a manual **dry run**, which generates artifacts but publishes no
+   release:
 
    ```powershell
    gh workflow run release.yml --ref main
@@ -16,69 +20,71 @@ or runtime is required on machines running these packages.
    gh run watch <RUN_ID>
    ```
 
-4. All `Verify` and `Package` jobs must pass. Inspect the run's artifacts:
-   `pbiq-win-x64` and `pbiq-linux-x64`. A manual dry run does **not** create
-   a GitHub Release.
-5. Download and smoke-test the Windows archive outside the repository:
+3. Require success in: `metadata`, both `Verify` jobs, both `Package` jobs and
+   `Verify SHA256 artifacts`. Package jobs unpack their archives and run real
+   executables against the public examples, including expected error exits.
+4. Download the dry-run packages and SHA256 file, confirm checksums, and try
+   the Windows executable from outside your source checkout.
+5. Do not add private PBIP, measure names, TMDL or validation CSVs to releases.
 
-   ```powershell
-   gh run download <RUN_ID> -n pbiq-win-x64 -D .\release-dry-run
-   Expand-Archive .\release-dry-run\pbiq-win-x64.zip -DestinationPath .\release-dry-run\pbiq -Force
-   & .\release-dry-run\pbiq\pbiq.exe --version
-   & .\release-dry-run\pbiq\pbiq.exe scan .\examples\valid-pbir-tmdl
-   $LASTEXITCODE  # expected: 0
-   ```
+## 2. RC tag (only after all RC checks)
 
-   The `release-dry-run` directory is local test output. Do not commit it.
-
-## Create a tagged prerelease
-
-After the dry run is green, check the CLI project's `<Version>` matches the
-planned tag. For the first release it is `0.1.0`.
+While `<Version>0.2.0-rc.1</Version>` is checked in and `main` is clean:
 
 ```powershell
 git switch main
 git pull --ff-only
 git status --short
-git tag -a v0.1.0 -m "Power BI Quality Gate v0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.0-rc.1 -m "PBIQ v0.2.0 release candidate 1"
+git push origin v0.2.0-rc.1
 ```
 
-Tag creation is an explicit manual step. Pushing `v0.1.0` triggers the same
-checks and packages for that commit. Only a successful tag-triggered workflow
-creates a **GitHub prerelease** with:
+The workflow checks the tag matches `<Version>`, that the tagged commit is
+reachable from `main`, reruns all checks, and uploads a **GitHub prerelease**:
 
 - `pbiq-win-x64.zip`
 - `pbiq-linux-x64.tar.gz`
 - `SHA256SUMS.txt`
 
-Use `gh run list --workflow release.yml --limit 3` to find and track the release
-run, then `gh release view v0.1.0` to confirm publication.
+Check it with `gh release view v0.2.0-rc.1`. Do not retarget tags.
 
-## Scope, compatibility, security
+## 3. Stable v0.2.0 (future gated step)
 
-- Packages are for Windows x64 and Linux x64 only. macOS and ARM64 are not yet
-  supported.
-- `PublishTrimmed=false` avoids introducing trimming-related regressions in
-  this early CLI version.
-- The CLI performs **structural** PBIP validation; it does not validate DAX,
-  semantic model correctness, Power BI Desktop compatibility, or performance.
-- The current test fixtures are synthetic and are not guaranteed to open in
-  Power BI Desktop.
-- The workflow uses `contents: read` by default. Only the tag-triggered
-  publish job receives `contents: write`.
-- Manual `workflow_dispatch` runs build and upload reviewable artifacts but
-  deliberately do not publish releases.
-- GitHub Releases are versioned snapshots. Do not move an existing release tag
-  to point to a different commit.
+After RC installation checks, release notes and any fixes have been verified:
 
-## Verify downloaded files
+1. Set `<Version>0.2.0</Version>` in
+   `src/PowerBIQualityGate.Cli/PowerBIQualityGate.Cli.csproj`.
+2. Run local build/test/format and the full **manual release dry run** again.
+3. Commit the version bump to `main` and require green CI.
+4. Only then create `v0.2.0` from the current main commit and push that tag.
 
-On Linux, download all three release assets into one directory and run:
+The workflow publishes a **normal GitHub Release** for `v0.2.0`, not a
+prerelease. Tagging is intentionally a separate user-approved action.
+
+## 4. Check downloaded packages
+
+On Linux, download all three release assets into the same directory:
 
 ```bash
 sha256sum -c SHA256SUMS.txt
 ```
 
-On Windows, compare `Get-FileHash -Algorithm SHA256 .\pbiq-win-x64.zip` with
-the corresponding SHA256 value in `SHA256SUMS.txt`.
+On Windows, check the archive hash against the matching line in the checksum
+file:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\pbiq-win-x64.zip
+Get-Content .\SHA256SUMS.txt
+```
+
+A checksum is a corruption check, not a cryptographic signature of the
+publisher. A passing `pbiq audit` covers only the limited metadata rules; it
+does not execute DAX or validate a full Power BI refresh.
+
+## Supported runtime / policy
+
+- Windows x64 and Linux x64 only, no macOS/ARM64 yet.
+- `PublishTrimmed=false` for TOM compatibility.
+- `workflow_dispatch` produces artifacts only, never publishes a Release.
+- The workflow has read-only permissions except for the tag-only publish job.
+- Tags are immutable release references. Do not move an existing tag.
