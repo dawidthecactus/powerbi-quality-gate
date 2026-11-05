@@ -29,7 +29,7 @@ public sealed class AuditCommandTests
         Assert.Contains("4 rules evaluated", output.Output);
         Assert.Contains("SM-003", output.Output);
         Assert.Contains("Sales[ProductId]", output.Output);
-        Assert.Contains("AUDIT: PASS WITH ADVISORIES", output.Output);
+        Assert.Contains("AUDIT: PASS WITH COVERAGE GAPS", output.Output);
         Assert.Equal(string.Empty, errors.Output);
     }
 

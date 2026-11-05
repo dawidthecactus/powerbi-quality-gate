@@ -11,8 +11,10 @@ is `Unknown` or `Variant`. Counting only warnings would conceal this gap.
 `pbiq audit <path>` now includes an **OBJECT COVERAGE** block inside the
 existing **02 RULE COVERAGE** section in both the styled terminal report
 and `--no-color` text. Failure reports without a loaded model do not invent
-coverage numbers. Exit codes, rule severities and the four report section
-numbers remain unchanged.
+coverage numbers. Rule severities and the four report section numbers
+remain unchanged. Since 02.4.3, optional `--min-measure-coverage` can make
+insufficient SM-002 classification coverage a quality-gate failure. See
+[coverage-aware policy](coverage-aware-gate-02.4.3.md).
 
 | Rule | Counted as checked | Excluded from that rule's scope |
 | --- | --- | --- |
@@ -50,7 +52,7 @@ skipped = hidden + unknown + nonnumeric
 
 The SM-002 rule uses the *same classifier* as the coverage analyzer, avoiding
 a report that claims a measure was checked when the rule skipped it. The
-existing failure policy is unchanged: unknown types do not create a new
+default failure policy is unchanged: unknown types do not create a new
 Warning or Error. Per-rule coverage is only printed for registered codes
 that were actually listed in the completed audit result.
 

@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Globalization;
 
 using PowerBIQualityGate.Cli.Rendering;
 using PowerBIQualityGate.Core.Discovery;
@@ -32,10 +33,16 @@ public static class AuditCommand
             Description = "Treat one or more Warning findings as a failing quality gate (exit code 1)."
         };
 
+        var minimumCoverageOption = new Option<string?>("--min-measure-coverage")
+        {
+            Description = "Require 0..100 percent SM-002 classification of eligible visible measures (integer)."
+        };
+
         var command = new Command("audit", "Review a local TMDL semantic model using the SM quality rules.");
         command.Arguments.Add(pathArgument);
         command.Options.Add(noColorOption);
         command.Options.Add(failOnWarningOption);
+        command.Options.Add(minimumCoverageOption);
 
         command.SetAction(parseResult =>
         {
@@ -44,7 +51,22 @@ public static class AuditCommand
                           Environment.GetEnvironmentVariable("NO_COLOR") is not null;
             var output = ConsoleFactory.Create(Console.Out, noColor || Console.IsOutputRedirected);
             var errors = ConsoleFactory.Create(Console.Error, noColor || Console.IsErrorRedirected);
-            return Execute(path, output, errors, parseResult.GetValue(failOnWarningOption));
+            var thresholdText = parseResult.GetValue(minimumCoverageOption);
+            int? threshold = null;
+            if (thresholdText is not null)
+            {
+                if (!int.TryParse(thresholdText, NumberStyles.None, CultureInfo.InvariantCulture,
+                    out var parsed) || parsed > 100)
+                {
+                    new ConsoleAuditRenderer(errors).RenderFailure(path, "INVALID COVERAGE THRESHOLD",
+                        "The --min-measure-coverage value must be an integer between 0 and 100.",
+                        "A coverage threshold must be valid before the audit can be evaluated.",
+                        "For example, use --min-measure-coverage 95.", exitCode: 2);
+                    return 2;
+                }
+                threshold = parsed;
+            }
+            return Execute(path, output, errors, parseResult.GetValue(failOnWarningOption), threshold);
         });
 
         return command;
@@ -54,10 +76,19 @@ public static class AuditCommand
     /// Execute an audit against a discovered PBIP entry point. Injecting the
     /// consoles keeps CLI behavior testable without replacing global streams.
     /// </summary>
-    public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors, bool failOnWarning = false)
+    public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors,
+        bool failOnWarning = false, int? minimumMeasureCoverage = null)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(errors);
+        if (minimumMeasureCoverage is < 0 or > 100)
+        {
+            new ConsoleAuditRenderer(errors).RenderFailure(path, "INVALID COVERAGE THRESHOLD",
+                "The --min-measure-coverage value must be an integer between 0 and 100.",
+                "A coverage threshold must be valid before the audit can be evaluated.",
+                "For example, use --min-measure-coverage 95.", exitCode: 2);
+            return 2;
+        }
 
         var discovery = new PbipProjectDiscovery().Discover(path);
         if (!discovery.IsSuccess)
@@ -134,7 +165,9 @@ public static class AuditCommand
             return 2;
         }
 
-        var decision = new QualityGatePolicy(failOnWarning).Evaluate(result);
+        var coverage = ModelAuditCoverageAnalyzer.Analyze(snapshot, result);
+        var decision = new CoverageAwareGatePolicy(failOnWarning, minimumMeasureCoverage)
+            .Evaluate(result, coverage);
         var console = decision.ExitCode == 0 ? output : errors;
         new ConsoleAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result, decision);
         return decision.ExitCode;

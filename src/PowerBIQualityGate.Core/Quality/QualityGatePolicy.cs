@@ -10,13 +10,19 @@ public enum QualityGateOutcome
     Passed,
     PassedWithAdvisories,
     Failed,
-    FailedOnWarnings
+    FailedOnWarnings,
+    PassedWithCoverageGaps,
+    FailedOnCoverage
 }
 
 public sealed record QualityGateDecision(
     QualityGateOutcome Outcome,
     int ExitCode,
-    bool FailOnWarning);
+    bool FailOnWarning,
+    int? MinimumMeasureCoverage = null,
+    int CheckedMeasures = 0,
+    int CandidateMeasures = 0,
+    bool HasMeasureCoverageGaps = false);
 
 /// <summary>
 /// Pure policy evaluation, separate from TOM parsing and rule execution.

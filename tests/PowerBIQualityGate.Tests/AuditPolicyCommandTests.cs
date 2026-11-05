@@ -28,7 +28,7 @@ public sealed class AuditPolicyCommandTests
         Assert.Equal(0, exitCode);
         Assert.Contains("SM-001", output.Output);
         Assert.Contains("1 warning", output.Output);
-        Assert.Contains("AUDIT: PASS WITH ADVISORIES", output.Output);
+        Assert.Contains("AUDIT: PASS WITH COVERAGE GAPS", output.Output);
         Assert.Equal(string.Empty, errors.Output);
     }
 
@@ -62,7 +62,7 @@ public sealed class AuditPolicyCommandTests
 
         Assert.Equal(0, exitCode);
         Assert.Contains("SM-003", output.Output);
-        Assert.Contains("AUDIT: PASS WITH ADVISORIES", output.Output);
+        Assert.Contains("AUDIT: PASS WITH COVERAGE GAPS", output.Output);
         Assert.Equal(string.Empty, errors.Output);
     }
 

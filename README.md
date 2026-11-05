@@ -24,6 +24,8 @@ analysis and automated build checks.
   bidirectional relationships, visible numeric-measure formatting, visible
   technical columns and inactive relationships.
 - Enable `audit --fail-on-warning` to block on warnings in CI.
+- Show `PASS WITH COVERAGE GAPS` for unclassified measure types and optionally
+  enforce `audit --min-measure-coverage 95` in CI.
 - Inspect per-rule **OBJECT COVERAGE**, including evaluated/omitted model objects
   and why `SM-002` skipped unknown TOM measure types.
 - Run read-only and offline, with structured exit codes and `--no-color` output.
@@ -100,12 +102,27 @@ Findings include rule codes, model-object locations, **WHY IT MATTERS** and
 Redirected output is plain text. See [console output](docs/console-output.md)
 and [audit terminal experience](docs/audit-terminal-experience.md).
 
+### Coverage-aware audits
+
+`pbiq audit` reports when the offline TOM metadata did not classify a visible
+measure's type. The status `PASS WITH COVERAGE GAPS` is **not** a claim that
+its formatting is correct. Require a minimum classification rate for SM-002:
+
+```powershell
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/valid-pbir-tmdl --min-measure-coverage 95
+$LASTEXITCODE # 1: sample measure types are Unknown, so SM-002 coverage is below 95%
+```
+
+No minimum is enforced by default. The threshold is a whole percent from 0 to
+100, and it can be used together with `--fail-on-warning`. See
+[coverage-aware gate](docs/coverage-aware-gate-02.4.3.md).
+
 ### Exit codes for `pbiq audit`
 
 | Code | Meaning |
 | --- | --- |
 | `0` | At least one rule evaluated and no blocking findings under the selected policy. |
-| `1` | Structural validation failed, Error finding reported, or Warning finding blocked by `--fail-on-warning`. |
+| `1` | Structural validation failed, Error finding reported, Warning finding blocked by `--fail-on-warning`, or SM-002 coverage below an explicitly configured minimum. |
 | `2` | Input/discovery/format/TOM/rule execution problem or no evaluated rules; audit not successfully evaluated. |
 
 `pbiq scan` retains its original structural exit-code contract. An audit
@@ -172,6 +189,7 @@ codes from **real CLI processes**. See [CI policy guide](docs/quality-gate-ci.md
 - [x] Basic TOM/TMDL semantic-model inspection
 - [x] First metadata rule pack and optional warning-based CI gate
 - [ ] Real-world Power BI Desktop export regression fixtures
+- [x] Explicitly report SM-002 coverage gaps and optional CI threshold
 - [ ] Per-rule configuration and suppression
 - [ ] Deeper DAX checks, JSON/SARIF reporting and policy profiles
 - [ ] Publish an updated standalone release with the current audit features

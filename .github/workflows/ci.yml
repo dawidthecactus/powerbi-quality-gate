@@ -45,10 +45,13 @@ jobs:
           $stderr = Join-Path $env:RUNNER_TEMP 'pbiq-audit-stderr.txt'
 
           $cases = @(
-            @{ Name = 'info-only default'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Expected = 0; Marker = 'PASS WITH ADVISORIES' }
-            @{ Name = 'info-only strict'; Path = 'examples/valid-pbir-tmdl'; Strict = $true; Expected = 0; Marker = 'PASS WITH ADVISORIES' }
-            @{ Name = 'warning default'; Path = 'examples/warning-pbir-tmdl'; Strict = $false; Expected = 0; Marker = 'PASS WITH ADVISORIES' }
+            @{ Name = 'info-only default'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Expected = 0; Marker = 'PASS WITH COVERAGE GAPS' }
+            @{ Name = 'info-only strict'; Path = 'examples/valid-pbir-tmdl'; Strict = $true; Expected = 0; Marker = 'PASS WITH COVERAGE GAPS' }
+            @{ Name = 'warning default'; Path = 'examples/warning-pbir-tmdl'; Strict = $false; Expected = 0; Marker = 'PASS WITH COVERAGE GAPS' }
             @{ Name = 'warning strict'; Path = 'examples/warning-pbir-tmdl'; Strict = $true; Expected = 1; Marker = 'FAIL (WARNING POLICY)' }
+            @{ Name = 'coverage strict'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Coverage = 95; Expected = 1; Marker = 'FAIL (COVERAGE POLICY)' }
+            @{ Name = 'coverage zero'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Coverage = 0; Expected = 0; Marker = 'PASS WITH COVERAGE GAPS' }
+            @{ Name = 'coverage invalid'; Path = 'examples/valid-pbir-tmdl'; Strict = $false; Coverage = 101; Expected = 2; Marker = 'INVALID COVERAGE THRESHOLD' }
             @{ Name = 'bad PBIP structure'; Path = 'examples/invalid-pbip-shortcut'; Strict = $true; Expected = 1; Marker = 'STRUCTURE VALIDATION FAILED' }
             @{ Name = 'missing project'; Path = 'examples/missing-project-does-not-exist'; Strict = $true; Expected = 2; Marker = 'PROJECT DISCOVERY FAILED' }
           )
@@ -56,6 +59,7 @@ jobs:
           foreach ($case in $cases) {
             $arguments = @($dll, 'audit', $case.Path, '--no-color')
             if ($case.Strict) { $arguments += '--fail-on-warning' }
+            if ($case.ContainsKey('Coverage')) { $arguments += @('--min-measure-coverage', [string]$case.Coverage) }
             $process = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -Wait -PassThru -NoNewWindow `
               -RedirectStandardOutput $stdout -RedirectStandardError $stderr
             $stream = if ($case.Expected -eq 0) { $stdout } else { $stderr }

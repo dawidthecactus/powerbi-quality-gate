@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using PowerBIQualityGate.Core.Inspection;
 using PowerBIQualityGate.Core.Quality;
 using PowerBIQualityGate.Core.Validation;
@@ -39,6 +41,7 @@ internal sealed class PlainTextAuditRenderer
             ? "  Active policy: warnings block the audit; information does not."
             : "  Default policy: warnings and information do not fail the audit.");
         WriteObjectCoverage(snapshot, result);
+        WriteCoveragePolicy(decision);
         _writer.WriteLine();
 
         WriteSection("03", "DIAGNOSTIC REPORT");
@@ -83,6 +86,8 @@ internal sealed class PlainTextAuditRenderer
         {
             QualityGateOutcome.Failed => "AUDIT: FAIL",
             QualityGateOutcome.FailedOnWarnings => "AUDIT: FAIL (WARNING POLICY)",
+            QualityGateOutcome.FailedOnCoverage => "AUDIT: FAIL (COVERAGE POLICY)",
+            QualityGateOutcome.PassedWithCoverageGaps => "AUDIT: PASS WITH COVERAGE GAPS",
             QualityGateOutcome.PassedWithAdvisories => "AUDIT: PASS WITH ADVISORIES",
             QualityGateOutcome.Passed => "AUDIT: PASS",
             _ => "AUDIT: NOT EVALUATED"
@@ -95,6 +100,10 @@ internal sealed class PlainTextAuditRenderer
         _writer.WriteLine(decision.FailOnWarning
             ? "  Active policy: warnings block this run; information does not."
             : "  Warnings and information do not block the default quality gate.");
+        if (decision.HasMeasureCoverageGaps)
+        {
+            _writer.WriteLine("  Coverage gap: unclassified SM-002 measures were not checked for formatting.");
+        }
     }
 
     private void WriteObjectCoverage(TomModelSnapshot snapshot, ModelQualityAuditResult result)
@@ -127,6 +136,24 @@ internal sealed class PlainTextAuditRenderer
         }
 
         _writer.WriteLine("  Coverage is based on TOM metadata; unknown measure types are not inferred from DAX.");
+    }
+
+    private void WriteCoveragePolicy(QualityGateDecision decision)
+    {
+        if (decision.CandidateMeasures == 0)
+        {
+            if (decision.MinimumMeasureCoverage is not null)
+            {
+                _writer.WriteLine("  Measure coverage gate: N/A (no eligible visible measures).");
+            }
+            return;
+        }
+
+        var actual = 100m * decision.CheckedMeasures / decision.CandidateMeasures;
+        _writer.WriteLine($"  SM-002 coverage gate: {actual.ToString("F1", CultureInfo.InvariantCulture)}% ({decision.CheckedMeasures}/{decision.CandidateMeasures} candidates); " +
+            (decision.MinimumMeasureCoverage is int threshold
+                ? $"minimum {threshold}%"
+                : "not enforced"));
     }
 
     private void WriteMeasureCoverage(MeasureFormattingCoverage measures)

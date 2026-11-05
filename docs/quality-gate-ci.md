@@ -18,12 +18,12 @@ objects are changed or saved, and the command never executes DAX.
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Rules ran, no Error findings; Warning findings allowed when strict policy is off. Information is allowed. |
-| `1` | Quality gate blocked by Error findings, or by Warning findings with `--fail-on-warning`; also used for structural PBIP validation failure before the audit. |
-| `2` | Missing/ambiguous input, unsupported model format, TOM deserialization failure, rule execution failure, or no evaluated rules. These are **not** passing audits. |
+| `1` | Quality gate blocked by Error findings, by warnings with `--fail-on-warning`, or by insufficient SM-002 coverage with `--min-measure-coverage`; also used for structural PBIP validation failure before the audit. |
+| `2` | Invalid coverage threshold, missing/ambiguous input, unsupported model format, TOM deserialization failure, rule execution failure, or no evaluated rules. These are **not** passing audits. |
 
 The CLI deliberately displays `AUDIT: FAIL (WARNING POLICY)` when the strict
 policy rejects warnings, and keeps the original `Warning` severity visible.
-The same invocation without strict policy displays `PASS WITH ADVISORIES`.
+The same invocation without strict policy permits warnings. When TOM contains unknown measure types, the outcome is shown as `PASS WITH COVERAGE GAPS` rather than implying the formatting check was complete. See [coverage gating](coverage-aware-gate-02.4.3.md).
 
 > The quality gate only covers the **four shipped metadata rules**. It does not
 > prove DAX, relationship cardinality, query performance, refresh, or semantic
@@ -90,7 +90,7 @@ rule.
 - Command tests use the real discovery/structure/TOM/rule pipeline with both
   the baseline and the warning TMDL fixtures, including stderr behavior.
 - The **existing** GitHub Actions matrix (Windows and Ubuntu) additionally
-  executes six **actual CLI processes** with expected exit codes `0`, `1`, `2`
+  executes nine **actual CLI processes** with expected exit codes `0`, `1`, `2`
   and asserts that a matching diagnostic appears on stdout/stderr.
 - Input errors are not reclassified by the `--fail-on-warning` flag.
 
@@ -108,6 +108,6 @@ DLL timestamps cause incremental build results to look stale.
 
 ## Limitations and future work
 
-The strict policy uses a single threshold switch. Rule-by-rule suppression,
+The strict warning and coverage policies are independent optional switches. Rule-by-rule suppression,
 configurable profiles, SARIF and JSON exports, DAX analysis, full PBIP schema
 validation, and a hardened build/test release remain separate future work.

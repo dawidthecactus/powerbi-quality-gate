@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using PowerBIQualityGate.Core.Inspection;
 using PowerBIQualityGate.Core.Quality;
 using PowerBIQualityGate.Core.Validation;
@@ -125,6 +127,7 @@ public sealed class ConsoleAuditRenderer
             : "Default policy: warnings and information do not fail the audit.";
         _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]{policy}[/]");
         WriteObjectCoverage(snapshot, result);
+        WriteCoveragePolicy(decision);
         _console.WriteLine();
     }
 
@@ -158,6 +161,24 @@ public sealed class ConsoleAuditRenderer
         }
 
         _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]Coverage is based on TOM metadata; unknown measure types are not inferred from DAX.[/]");
+    }
+
+    private void WriteCoveragePolicy(QualityGateDecision decision)
+    {
+        if (decision.CandidateMeasures == 0)
+        {
+            if (decision.MinimumMeasureCoverage is not null)
+            {
+                _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]Measure coverage gate: N/A (no eligible visible measures).[/]");
+            }
+            return;
+        }
+
+        var actual = 100m * decision.CheckedMeasures / decision.CandidateMeasures;
+        _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]SM-002 coverage gate: {actual.ToString("F1", CultureInfo.InvariantCulture)}% ({decision.CheckedMeasures}/{decision.CandidateMeasures} candidates); " +
+            (decision.MinimumMeasureCoverage is int threshold
+                ? $"minimum {threshold}%"
+                : "not enforced") + "[/]");
     }
 
     private void WriteMeasureCoverage(MeasureFormattingCoverage measures)
@@ -229,6 +250,8 @@ public sealed class ConsoleAuditRenderer
         {
             QualityGateOutcome.Failed => (Red, "AUDIT: FAIL", "✕"),
             QualityGateOutcome.FailedOnWarnings => (Red, "AUDIT: FAIL (WARNING POLICY)", "✕"),
+            QualityGateOutcome.FailedOnCoverage => (Red, "AUDIT: FAIL (COVERAGE POLICY)", "✕"),
+            QualityGateOutcome.PassedWithCoverageGaps => (Amber, "AUDIT: PASS WITH COVERAGE GAPS", "!"),
             QualityGateOutcome.PassedWithAdvisories => (Amber, "AUDIT: PASS WITH ADVISORIES", "!"),
             QualityGateOutcome.Passed => (PbiqConsoleChrome.Mint, "AUDIT: PASS", "✓"),
             _ => (Amber, "AUDIT: NOT EVALUATED", "!")
@@ -248,5 +271,9 @@ public sealed class ConsoleAuditRenderer
             ? "Active policy: warnings block this run; information does not."
             : "Warnings and information do not block the default quality gate.";
         _console.MarkupLine($"  [{PbiqConsoleChrome.Muted}]{policyNote}[/]");
+        if (decision.HasMeasureCoverageGaps)
+        {
+            _console.MarkupLine($"  [bold {Amber}]Coverage gap: unclassified SM-002 measures were not checked for formatting.[/]");
+        }
     }
 }
