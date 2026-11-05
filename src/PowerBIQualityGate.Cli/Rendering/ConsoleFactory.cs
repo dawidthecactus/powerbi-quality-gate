@@ -8,7 +8,7 @@ public static class ConsoleFactory
     {
         ArgumentNullException.ThrowIfNull(writer);
 
-        return AnsiConsole.Create(new AnsiConsoleSettings
+        var console = AnsiConsole.Create(new AnsiConsoleSettings
         {
             Ansi = noColor ? AnsiSupport.No : AnsiSupport.Detect,
             ColorSystem = noColor
@@ -21,5 +21,17 @@ public static class ConsoleFactory
                 UseDefaultEnrichers = !noColor
             }
         });
+
+        // Keep the output contract explicit after Spectre has built its profile.
+        // Some hosts and CI environments advertise terminal capabilities via
+        // environment enrichers. Plain-text mode must never inherit ANSI output.
+        if (noColor)
+        {
+            console.Profile.Capabilities.Ansi = false;
+            console.Profile.Capabilities.ColorSystem = ColorSystem.NoColors;
+            console.Profile.Capabilities.Links = false;
+        }
+
+        return console;
     }
 }

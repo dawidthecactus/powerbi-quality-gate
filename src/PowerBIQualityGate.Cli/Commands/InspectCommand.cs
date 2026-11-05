@@ -19,15 +19,21 @@ public static class InspectCommand
         {
             Description = "Disable ANSI colors and control codes."
         };
+        var tomOption = new Option<bool>("--tom")
+        {
+            Description = "Preview official Microsoft TOM/TMDL deserialization and detailed model metadata."
+        };
 
-        var command = new Command("inspect", "Show a preliminary inventory of a local TMDL semantic model.");
+        var command = new Command("inspect", "Inspect a local TMDL semantic model.");
         command.Arguments.Add(pathArgument);
         command.Options.Add(noColorOption);
+        command.Options.Add(tomOption);
         command.SetAction(parseResult =>
         {
             var path = parseResult.GetValue(pathArgument) ?? string.Empty;
             var noColor = parseResult.GetValue(noColorOption) ||
                           Environment.GetEnvironmentVariable("NO_COLOR") is not null;
+            var useTom = parseResult.GetValue(tomOption);
             var discovery = new PbipProjectDiscovery().Discover(path);
             if (!discovery.IsSuccess)
             {
@@ -45,15 +51,34 @@ public static class InspectCommand
             if (validation.SemanticModelFormat != SemanticModelDefinitionFormat.Tmdl ||
                 string.IsNullOrWhiteSpace(validation.SemanticModelDirectory))
             {
-                Console.Error.WriteLine("PBIQ inspect: this initial inspector supports local TMDL only (not TMSL or external models).");
+                Console.Error.WriteLine("PBIQ inspect: currently supports local TMDL only (not TMSL or external models).");
                 return 2;
+            }
+
+            var definition = Path.Combine(validation.SemanticModelDirectory, "definition");
+            if (useTom)
+            {
+                TomModelSnapshot snapshot;
+                try
+                {
+                    snapshot = new TomModelReader().Read(definition);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    Console.Error.WriteLine($"PBIQ inspect: Microsoft TOM could not deserialize this TMDL model ({ex.GetType().Name}): {ex.Message}");
+                    Console.Error.WriteLine("The original files were not modified. Try 'pbiq inspect' for the declaration-only preview.");
+                    return 2;
+                }
+
+                var tomConsole = ConsoleFactory.Create(Console.Out, noColor || Console.IsOutputRedirected);
+                new ConsoleTomModelRenderer(tomConsole).Render(discovery.PbipPath!, snapshot);
+                return 0;
             }
 
             TmdlInventory inventory;
             try
             {
-                inventory = new TmdlInventoryReader().Read(
-                    Path.Combine(validation.SemanticModelDirectory, "definition"));
+                inventory = new TmdlInventoryReader().Read(definition);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
             {
@@ -67,5 +92,4 @@ public static class InspectCommand
         });
         return command;
     }
-
 }

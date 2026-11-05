@@ -1,1 +1,2 @@
 database Database
+	compatibilityLevel: 1600
