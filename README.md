@@ -20,6 +20,7 @@ analysis and automated build checks.
 - Detect local TMDL/TMSL or external semantic-model references.
 - Display the shared branded PBIQ terminal report with stable `PBI-001`–`PBI-018` diagnostics.
 - Inspect a local TMDL model using the Microsoft TOM serializer (`inspect --tom`).
+- Inventory formatting and TOM data types of every measure with privacy-safe `inspect --measures` (without DAX evaluation).
 - Audit TOM-derived metadata with `SM-001`–`SM-004`:
   bidirectional relationships, visible numeric-measure formatting, visible
   technical columns and inactive relationships.
@@ -118,6 +119,27 @@ $LASTEXITCODE # 1: sample measure types are Unknown, so SM-002 coverage is below
 No minimum is enforced by default. The threshold is a whole percent from 0 to
 100, and it can be used together with `--fail-on-warning`. See
 [coverage-aware gate](docs/coverage-aware-gate-02.4.3.md).
+
+## Measure metadata inventory (Milestones 02.4.5.1 + 02.4.5.2)
+
+The new **read-only** inventory classifies each measure on two independent axes:
+format metadata (`Static`, `Dynamic`, `Missing`) and offline TOM data type
+(`Numeric`, `NonNumeric`, `Unknown`, `Unsupported`). Hidden measures are counted
+in the total but excluded from the visible-format/type breakdown. A present
+format does **not** prove that a measure is numeric or correctly formatted.
+
+```powershell
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- inspect examples/valid-pbir-tmdl --measures --no-color
+```
+
+This view prints only aggregate counts, without individual table/measure names,
+DAX expressions, or format-string values. `--measures` and `--tom` are mutually
+exclusive. See [measure inspection](docs/measure-inspection-02.4.5.md).
+
+**Important:** The existing SM-002 rule, `audit` verdicts and
+`--min-measure-coverage` policy are intentionally unchanged in this stage.
+The newer metadata-inspection percentage must not be mistaken for numeric
+classification coverage.
 
 ## Minimal audit output (Milestone 02.4.4)
 

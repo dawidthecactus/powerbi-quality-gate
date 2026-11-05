@@ -85,5 +85,25 @@ jobs:
             Write-Host "PASS $($case.Name): exit $($process.ExitCode)"
           }
 
+      - name: Measure metadata inventory CLI smoke (Windows and Linux)
+        shell: pwsh
+        run: |
+          $dll = Join-Path (Get-Location).Path 'src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll'
+          $result = & dotnet $dll inspect examples/valid-pbir-tmdl --measures --no-color
+          if ($LASTEXITCODE -ne 0) { throw 'Measure inventory should succeed.' }
+          $content = $result -join "`n"
+          if (-not $content.Contains('Measures inspected: 2/2') -or
+              -not $content.Contains('Format (visible):') -or
+              -not $content.Contains('Type (visible):')) {
+            throw 'Measure inventory did not contain required aggregates.'
+          }
+          if ($content.Contains([char]27) -or $content.Contains('SUM(')) {
+            throw 'Measure inventory exposed ANSI control or an expression.'
+          }
+          $bad = & dotnet $dll inspect examples/valid-pbir-tmdl --tom --measures 2>&1
+          if ($LASTEXITCODE -ne 2 -or -not (($bad -join "`n").Contains('alternative output modes'))) {
+            throw 'Conflicting inspection modes were not rejected.'
+          }
+
       - name: Verify formatting
         run: dotnet format whitespace --verify-no-changes --no-restore

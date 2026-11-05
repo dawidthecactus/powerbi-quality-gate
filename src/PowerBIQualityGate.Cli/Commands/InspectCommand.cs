@@ -23,17 +23,30 @@ public static class InspectCommand
         {
             Description = "Preview official Microsoft TOM/TMDL deserialization and detailed model metadata."
         };
+        var measuresOption = new Option<bool>("--measures")
+        {
+            Description = "Summarize all TOM measure-format metadata and data types without exposing names or DAX."
+        };
 
         var command = new Command("inspect", "Inspect a local TMDL semantic model.");
         command.Arguments.Add(pathArgument);
         command.Options.Add(noColorOption);
         command.Options.Add(tomOption);
+        command.Options.Add(measuresOption);
         command.SetAction(parseResult =>
         {
             var path = parseResult.GetValue(pathArgument) ?? string.Empty;
             var noColor = parseResult.GetValue(noColorOption) ||
                           Environment.GetEnvironmentVariable("NO_COLOR") is not null;
             var useTom = parseResult.GetValue(tomOption);
+            var inspectMeasures = parseResult.GetValue(measuresOption);
+
+            if (useTom && inspectMeasures)
+            {
+                Console.Error.WriteLine("PBIQ inspect: --tom and --measures are alternative output modes (exit code 2).");
+                return 2;
+            }
+
             var discovery = new PbipProjectDiscovery().Discover(path);
             if (!discovery.IsSuccess)
             {
@@ -56,22 +69,31 @@ public static class InspectCommand
             }
 
             var definition = Path.Combine(validation.SemanticModelDirectory, "definition");
-            if (useTom)
+            if (useTom || inspectMeasures)
             {
                 TomModelSnapshot snapshot;
                 try
                 {
                     snapshot = new TomModelReader().Read(definition);
                 }
-                catch (Exception ex) when (ex is not OutOfMemoryException)
+                catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
                 {
                     Console.Error.WriteLine($"PBIQ inspect: Microsoft TOM could not deserialize this TMDL model ({ex.GetType().Name}): {ex.Message}");
                     Console.Error.WriteLine("The original files were not modified. Try 'pbiq inspect' for the declaration-only preview.");
                     return 2;
                 }
 
-                var tomConsole = ConsoleFactory.Create(Console.Out, noColor || Console.IsOutputRedirected);
-                new ConsoleTomModelRenderer(tomConsole).Render(discovery.PbipPath!, snapshot);
+                if (inspectMeasures)
+                {
+                    var report = new MeasureInspectionEngine().Inspect(snapshot);
+                    new MeasureInspectionRenderer(Console.Out).Render(discovery.PbipPath!, report);
+                }
+                else
+                {
+                    var tomConsole = ConsoleFactory.Create(Console.Out, noColor || Console.IsOutputRedirected);
+                    new ConsoleTomModelRenderer(tomConsole).Render(discovery.PbipPath!, snapshot);
+                }
+
                 return 0;
             }
 
