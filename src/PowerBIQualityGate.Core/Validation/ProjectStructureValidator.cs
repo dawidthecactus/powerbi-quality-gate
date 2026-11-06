@@ -79,6 +79,61 @@ public sealed class ProjectStructureValidator
         return state.Result();
     }
 
+    /// <summary>
+    /// Validate one native Fabric Git .SemanticModel item without requiring
+    /// a PBIP shortcut or a report. Only model metadata is checked here;
+    /// the TOM serializer remains responsible for TMDL semantics.
+    /// </summary>
+    public ProjectStructureValidationResult ValidateFabricSemanticModel(string semanticModelDirectory)
+    {
+        var state = new ValidationState();
+        if (string.IsNullOrWhiteSpace(semanticModelDirectory))
+        {
+            state.Error("PBI-013", "Fabric semantic model path cannot be empty.", string.Empty);
+            return state.Result();
+        }
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(semanticModelDirectory);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            state.Error("PBI-013", "Fabric semantic model path is invalid.", string.Empty);
+            return state.Result();
+        }
+
+        if (!Directory.Exists(fullPath) ||
+            !Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                .EndsWith(".SemanticModel", StringComparison.OrdinalIgnoreCase))
+        {
+            state.Error("PBI-013", "Expected a Fabric .SemanticModel directory.", fullPath);
+            return state.Result();
+        }
+
+        state.SemanticModelDirectory = fullPath;
+        ValidateSemanticModel(fullPath, state);
+        if (state.SemanticModelFormat == SemanticModelDefinitionFormat.Tmdl)
+        {
+            var tablesDirectory = Path.Combine(fullPath, "definition", "tables");
+            try
+            {
+                if (!Directory.Exists(tablesDirectory) ||
+                    !Directory.EnumerateFiles(tablesDirectory, "*.tmdl", SearchOption.TopDirectoryOnly).Any())
+                {
+                    state.Error("PBI-017", "Fabric TMDL model requires a table definition.", tablesDirectory);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                state.Error("PBI-017", "Unable to inspect Fabric TMDL tables.", tablesDirectory);
+            }
+        }
+
+        return state.Result();
+    }
+
     private static void ValidateReport(string reportDirectory, string projectRoot, ValidationState state)
     {
         var manifestPath = Path.Combine(reportDirectory, "definition.pbir");

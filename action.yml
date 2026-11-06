@@ -1,0 +1,67 @@
+name: PBIQ Power BI Quality Gate
+description: Audit a checked-out Power BI PBIP or Fabric Git .SemanticModel and emit SARIF.
+author: DawidTheCactus
+branding:
+  icon: check-circle
+  color: purple
+
+inputs:
+  project-path:
+    description: Workspace-relative .pbip, .SemanticModel item, or workspace with a single .SemanticModel.
+    required: true
+  config-path:
+    description: Optional workspace-relative .pbiq.yml; auto-discovered beside the PBIP or Fabric item.
+    required: false
+    default: ''
+  fail-on-warning:
+    description: Fail the quality gate when warning findings remain after exclusions (true/false).
+    required: false
+    default: 'false'
+  min-measure-coverage:
+    description: Optional integer 0..100; requires SM-002 to be enabled.
+    required: false
+    default: ''
+  sarif-output:
+    description: Workspace-relative output .sarif path; parent directories are created.
+    required: false
+    default: pbiq-results.sarif
+
+outputs:
+  exit-code:
+    description: PBIQ audit exit code (0 accepted, 1 gate rejected, 2 not evaluated / setup failed).
+    value: ${{ steps.audit.outputs.exit-code }}
+  sarif-path:
+    description: Absolute path to validated SARIF, or empty if no valid report was produced.
+    value: ${{ steps.audit.outputs.sarif-path }}
+  evaluated:
+    description: "true only after a completed audit. false for structure/config/parser/tool failures even if SARIF exists."
+    value: ${{ steps.audit.outputs.evaluated }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+    - name: Build and run PBIQ (persist SARIF and exit code)
+      id: audit
+      shell: pwsh
+      env:
+        PBIQ_ACTION_PATH: ${{ github.action_path }}
+        PBIQ_PROJECT_PATH: ${{ inputs.project-path }}
+        PBIQ_CONFIG_PATH: ${{ inputs.config-path }}
+        PBIQ_FAIL_ON_WARNING: ${{ inputs.fail-on-warning }}
+        PBIQ_MIN_MEASURE_COVERAGE: ${{ inputs.min-measure-coverage }}
+        PBIQ_SARIF_OUTPUT: ${{ inputs.sarif-output }}
+      run: '& "$env:PBIQ_ACTION_PATH/scripts/run-composite-action.ps1"'
+    - name: Enforce PBIQ exit code
+      if: ${{ steps.audit.outputs.exit-code != '0' }}
+      shell: pwsh
+      env:
+        PBIQ_EXIT_CODE: ${{ steps.audit.outputs.exit-code }}
+      run: |
+        if ($env:PBIQ_EXIT_CODE -eq '1') {
+          throw 'PBIQ quality gate failed (exit code 1). See the generated SARIF report.'
+        }
+        throw 'PBIQ audit was not evaluated (exit code 2). Check the setup and project.'

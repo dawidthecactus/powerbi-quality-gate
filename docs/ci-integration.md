@@ -1,151 +1,111 @@
-# PBIQ in CI and developer workflows
+# PBIQ in CI: PBIP and Fabric Git
 
-PBIQ returns machine-consumable exit codes while preserving a concise human-readable report. **Choose your gate policy explicitly.** By default, Warning findings are advisory; `--fail-on-warning` and `--min-measure-coverage` make them or incomplete type classification blocking.
+PBIQ audits **local checked-out** TMDL metadata. The v0.3 source tree includes
+JSON (`schemaVersion: 1.0.0`), SARIF (`2.1.0`), `.pbiq.yml` and a composite
+GitHub Action. These features are **not included** in the public
+`v0.2.0-rc.1` binary packages. Pin a reviewed v0.3+ source revision or use
+an appropriately verified future v0.3 prerelease.
 
-> **Release status:** there is no published stable `v0.2.0` yet. The examples below build a reviewed source revision, rather than linking to a nonexistent release download. Once a tagged package is published and verified, a separate workflow may install that binary instead.
+## Exit codes are the policy contract
 
-## Exit-code contract
+| Exit | Meaning | Consumer action |
+| --- | --- | --- |
+| `0` | Audit evaluated and accepted, possibly with advisory findings / coverage gaps | Allow |
+| `1` | Policy rejected findings or prerequisite structure failed | Block |
+| `2` | Not evaluated: unsupported input, invalid policy, parser/TOM/engine failure | Block/investigate |
 
-| Code | `audit` meaning | CI decision |
-| :--: | --- | --- |
-| `0` | Evaluated rules passed the configured gate (possibly with advisories/coverage gaps) | Allow |
-| `1` | Rule/policy failure, or prerequisite structural failure | Block |
-| `2` | Bad input/flags, unsupported model, TOM/rule/integrity failure or no evaluated rules | Block; investigate tooling/input |
+Warnings are advisory by default. `--fail-on-warning` and
+`--min-measure-coverage 95` are independent, explicit gates. An offline
+`Unknown` measure type does not automatically imply a formatting defect.
 
-A `PASS WITH COVERAGE GAPS` exit `0` is **not equivalent to 100% type classification**. Set a meaningful minimum explicitly if the pipeline requires it. No minimum is enforced by default.
-
-## Quick local gate: PowerShell 7
-
-From a built source checkout:
+## Run from a built source checkout
 
 ```powershell
 $cli = './src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll'
-$pbip = './examples/warning-pbir-tmdl'
 
-# Default is advisory, so this synthetic Warning still returns 0.
-dotnet $cli audit $pbip --quiet
-$LASTEXITCODE
-
-# Strict warnings block. The synthetic model returns exit 1.
-dotnet $cli audit $pbip --fail-on-warning --quiet
+# Portable, one-line status; input from a checked-out PBIP repo.
+dotnet $cli audit ./examples/warning-pbir-tmdl --fail-on-warning --quiet
 $exit = $LASTEXITCODE
-if ($exit -ne 0) {
-    throw "PBIQ quality gate blocked this change (exit $exit)."
-}
+if ($exit -ne 0) { throw "PBIQ blocked the build (exit $exit)" }
+
+# Native Fabric Git model without .pbip shortcut.
+dotnet $cli audit ./examples/fabric-git/Revenue.SemanticModel --format json
 ```
 
-For a genuine project, replace the example folder with your `.pbip` path. `--quiet` prints a single plain-text line and avoids model object names.
+## GitHub composite Action
 
-## Quick local gate: Bash
-
-```bash
-set -euo pipefail
-PBIQ='./pbiq/pbiq'  # path to installed Linux x64 executable
-PBIP='./reports/MyReport.pbip'
-
-"$PBIQ" audit "$PBIP" --fail-on-warning --quiet
-```
-
-With `set -e`, either `1` or `2` stops the pipeline. If you need different messages for policy failures versus tool errors, temporarily capture the status with `if ...; then ...; else status=$?; ...; fi` rather than suppressing all failures with `|| true`.
-
-## GitHub Actions: build a pinned PBIQ revision
-
-This example assumes your repository **already contains** the PBIP files under `reports/MyReport.pbip` and uses a Linux runner. Pin the tool to a **reviewed commit** instead of silently tracking a changing `main`. The SHA below is a reviewed working source revision from the release-readiness stage; update it deliberately for subsequent PBIQ changes.
-
-Create `.github/workflows/powerbi-quality.yml` in **your Power BI project repository**:
+A real consumer repository can use the action declared by the **root**
+[`action.yml`](../action.yml). See the
+[copyable consumer workflow](examples/pbiq-consumer-workflow.yml) and
+[03.5 implementation guide](milestone-03.5-reusable-action.md).
 
 ```yaml
-name: Power BI Quality Gate
-
-on:
-  pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  pbiq:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout PBIP repository
-        uses: actions/checkout@v7
-
-      - name: Install .NET 10 SDK
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Checkout pinned PBIQ source
-        shell: bash
-        run: |
-          git clone https://github.com/dawidthecactus/powerbi-quality-gate.git .pbiq-tool
-          git -C .pbiq-tool checkout 39968aa5469f99125b416c1e43258db8887fbfba
-
-      - name: Build PBIQ
-        shell: bash
-        run: dotnet build .pbiq-tool/src/PowerBIQualityGate.Cli/PowerBIQualityGate.Cli.csproj -c Release -warnaserror
-
-      - name: Audit semantic model
-        shell: bash
-        run: |
-          dotnet .pbiq-tool/src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll \
-            audit ./reports/MyReport.pbip --fail-on-warning --no-color --quiet
+- uses: actions/checkout@v7
+- name: Run PBIQ
+  id: pbiq
+  continue-on-error: true
+  uses: dawidthecactus/powerbi-quality-gate@REPLACE_WITH_REVIEWED_FULL_COMMIT_SHA
+  with:
+    project-path: reports/YourReport.pbip
+    # Fabric alternative: workspace/Revenue.SemanticModel
+    fail-on-warning: 'true'
+    sarif-output: reports/pbiq.sarif
+- name: Upload SARIF
+  if: ${{ always() && steps.pbiq.outputs.evaluated == 'true' && steps.pbiq.outputs.sarif-path != '' }}
+  uses: github/codeql-action/upload-sarif@v4
+  with:
+    sarif_file: ${{ steps.pbiq.outputs.sarif-path }}
+    category: pbiq-powerbi
+- name: Enforce gate after upload
+  if: ${{ always() && steps.pbiq.outputs.exit-code != '0' }}
+  shell: bash
+  run: exit 1
 ```
 
-**Why not copy the GitHub Actions workflow from PBIQ directly?** That workflow tests and packages **PBIQ itself**. The sample above is a **consumer workflow** that runs PBIQ against a different repository's PBIP.
+Add `contents: read` and `security-events: write` to the job permissions if
+uploading into an entitled GitHub Code Scanning repository. Upload may be
+unavailable for untrusted fork PRs; never elevate untrusted code by moving it
+to a privileged `pull_request_target` flow. If Code Scanning is unavailable,
+retain the SARIF as an ordinary CI artifact instead.
 
-The final `dotnet ... audit` command returns `1` on a blocking finding and `2` on an evaluation problem, causing the Bash job to fail. Modify `--fail-on-warning` and `--min-measure-coverage` to match your team's policy. For example:
+The action builds PBIQ at its **pinned action revision**, runs SARIF audit,
+exposes `exit-code`, `sarif-path`, and `evaluated`, and then fails when the exit is nonzero.
+`continue-on-error: true` is intentionally used **only** to preserve the SARIF
+for upload **only when `evaluated=true`**; the final gate step enforces the saved result.
+An exit `1` may also indicate structural validation failure, so do not gate uploads
+solely by exit code. An unsuccessful SARIF invocation must never replace an earlier
+Code Scanning result set with an empty report. Do not omit the
+final gate step. The action currently rebuilds the .NET CLI on every call.
+
+Before the v0.3 feature is released, replace the placeholder with an **actual
+reviewed full commit SHA containing `action.yml`**. The earlier public
+`v0.2.0-rc.1` tag does not contain the action.
+
+## Direct CLI SARIF export
+
+For integrations without the composite Action:
 
 ```bash
-dotnet .pbiq-tool/src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll \
-  audit ./reports/MyReport.pbip --fail-on-warning --min-measure-coverage 95 --quiet
+set +e
+./pbiq audit workspace/Revenue.SemanticModel \
+  --format sarif --sarif-source-root "$GITHUB_WORKSPACE" > pbiq-results.sarif
+status=$?
+set -e
+# Retain SARIF for diagnostics. Upload to Code Scanning only when
+# .runs[0].invocations[0].executionSuccessful is true; then enforce $status.
 ```
 
-**Important:** for a PBIP with offline TOM `Unknown` measure types, the threshold may reject the model even when no formatting defects are confirmed. Treat this as an intentional policy decision, not as a silent bug in the report.
+The source root must actually contain the PBIP or Fabric item directory.
+Unmapped results remain SARIF findings without physical locations and cannot
+be annotated to a line. JSON and SARIF contain model object identifiers; do
+not upload reports from private customer projects to public repositories.
 
-## Windows PowerShell CI considerations
+## Scope
 
-To run a standalone Windows binary in a GitHub Actions PowerShell step:
-
-```yaml
-- name: Audit PBIP (Windows)
-  shell: pwsh
-  run: |
-    $exe = './tools/pbiq/pbiq.exe'
-    $project = './reports/MyReport.pbip'
-    & $exe audit $project --fail-on-warning --quiet
-    $code = $LASTEXITCODE
-    if ($code -ne 0) { throw "PBIQ audit failed (exit $code)" }
-```
-
-The preceding step assumes you have **already downloaded and extracted** a trusted, verified Windows package to `tools/pbiq`. It is intentionally not a complete workflow while there is no published release asset. In PowerShell, native commands may behave differently under `$PSNativeCommandUseErrorActionPreference`; where a script must **inspect an expected nonzero exit** instead of failing immediately, use `Start-Process -Wait -PassThru` with redirected output, as PBIQ's own cross-platform regression workflows do.
-
-## Choosing the right policy
-
-| Goal | Suggested options | Effect |
-| --- | --- | --- |
-| Local exploration | `audit <path>` | Shows findings; warnings advisory |
-| PR review summary | `audit <path> --quiet` | One-line status without object names |
-| Block confirmed warnings | `audit <path> --fail-on-warning --quiet` | Warning triggers exit `1` |
-| Block coverage gaps | `audit <path> --min-measure-coverage 95 --quiet` | Classification below 95% triggers exit `1` |
-| Both conditions | Combine both policy flags | Either can block; warning policy can take display precedence |
-| Investigate locally | `audit <path> --details` | Object locations and HOW/WHY; may contain sensitive metadata |
-
-## CI safety and diagnostics
-
-- Use a **fixed source commit** or verified release; do not download arbitrary binaries or execute scripts from unreviewed branches.
-- Never push private PBIP/TMDL files, detailed audit logs, TOM previews or customer data into public CI fixtures. Running on a private GitHub runner still requires checking log and artifact retention policies.
-- Use `--no-color` for deterministic plain logs. This flag **does not anonymize model paths**; use `--quiet` for a minimal audit verdict.
-- Do not use `continue-on-error: true` or `|| true` for a step that is intended to enforce the quality gate.
-- Treat `2` as a **failure to evaluate**, not as a passing model.
-- PBIQ never executes DAX or connects to Power BI Service. Passing the gate does not prove business correctness, refresh ability or Desktop compatibility.
-
-## Further reading
-
-- [Getting started](getting-started.md)
-- [CLI commands and flags](commands.md)
-- [Interpreting statuses and coverage](output-guide.md)
-- [Current quality rules](first-rule-pack.md)
-- [Coverage policy details](coverage-aware-gate-02.4.3.md)
-- [PBIQ's own CI smoke tests](quality-gate-ci.md)
+PBIQ does **not** refresh datasets, validate DAX runtime behavior or connect
+to Power BI/Fabric services. Metadata/structure checks are conservative and
+not a semantic correctness certificate. GitHub Code Scanning annotations
+require repository entitlement and correctly mapped source files. The 03.5
+composite action was tested inside the PBIQ repository on Windows and Linux;
+**a separate consumer repository integration remains a release-readiness
+check**, not a verified claim.

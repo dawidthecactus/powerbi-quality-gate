@@ -1,0 +1,10 @@
+table Product
+	column ProductId
+		dataType: int64
+		sourceColumn: ProductId
+	column 'Product Name'
+		dataType: string
+		sourceColumn: "Product Name"
+	hierarchy 'Product Details'
+		level 'Product Name'
+			column: 'Product Name'

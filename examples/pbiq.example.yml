@@ -1,0 +1,14 @@
+# Copy to the directory containing your .pbip file as .pbiq.yml.
+# This example is intentionally NOT named .pbiq.yml to avoid changing fixtures.
+version: 1
+rules:
+  SM-001: true
+  SM-002: true
+  SM-003: true
+  SM-004: true
+policy:
+  failOnWarning: false
+  minMeasureCoverage: 0
+exclusions:
+  - rule: SM-003
+    object: Sales[ProductId]

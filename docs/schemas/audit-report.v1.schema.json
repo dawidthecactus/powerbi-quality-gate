@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dawidthecactus/powerbi-quality-gate/blob/main/docs/schemas/audit-report.v1.schema.json",
+  "title": "PBIQ audit JSON report v1",
+  "description": "Machine-readable result of pbiq audit --format json. File coordinates are provided only for uniquely matched TMDL declarations; otherwise null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "command", "project", "result", "summary", "policy", "coverage", "rules", "diagnostics", "failure"],
+  "properties": {
+    "schemaVersion": {"const": "1.0.0"},
+    "tool": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {"name": {"const": "pbiq"}, "version": {"type": "string", "minLength": 1}}
+    },
+    "command": {"const": "audit"},
+    "project": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "modelName", "tables", "measures", "relationships"],
+      "properties": {
+        "name": {"type": ["string", "null"]},
+        "modelName": {"type": ["string", "null"]},
+        "tables": {"$ref": "#/$defs/nullableCount"},
+        "measures": {"$ref": "#/$defs/nullableCount"},
+        "relationships": {"$ref": "#/$defs/nullableCount"}
+      }
+    },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "exitCode"],
+      "properties": {
+        "status": {
+          "enum": ["pass", "pass_with_advisories", "pass_with_coverage_gaps", "fail", "fail_warning_policy", "fail_coverage_policy", "not_evaluated"]
+        },
+        "exitCode": {"type": "integer", "enum": [0, 1, 2]}
+      }
+    },
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rulesEvaluated", "errors", "warnings", "information"],
+      "properties": {
+        "rulesEvaluated": {"$ref": "#/$defs/count"},
+        "errors": {"$ref": "#/$defs/count"},
+        "warnings": {"$ref": "#/$defs/count"},
+        "information": {"$ref": "#/$defs/count"},
+        "suppressed": {"$ref": "#/$defs/count"}
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["failOnWarning", "minimumMeasureCoverage"],
+      "properties": {
+        "failOnWarning": {"type": "boolean"},
+        "minimumMeasureCoverage": {
+          "oneOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]
+        }
+      }
+    },
+    "coverage": {
+      "oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false,
+        "required": ["measures"], "properties": {"measures": {"$ref": "#/$defs/measureCoverage"}}
+      }]
+    },
+    "rules": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+    "failure": {
+      "oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {"code": {"type": "string", "minLength": 1}, "message": {"type": "string", "minLength": 1}}
+      }]
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "nullableCount": {"oneOf": [{"$ref": "#/$defs/count"}, {"type": "null"}]},
+    "measureCoverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["inspected", "visible", "checkedNumeric", "candidates", "unknownType", "needsReview", "classificationPercent", "hasGaps"],
+      "properties": {
+        "inspected": {"$ref": "#/$defs/count"},
+        "visible": {"$ref": "#/$defs/count"},
+        "checkedNumeric": {"$ref": "#/$defs/count"},
+        "candidates": {"$ref": "#/$defs/count"},
+        "unknownType": {"$ref": "#/$defs/count"},
+        "needsReview": {"$ref": "#/$defs/count"},
+        "classificationPercent": {
+          "oneOf": [{"type": "number", "minimum": 0, "maximum": 100}, {"type": "null"}]
+        },
+        "hasGaps": {"type": "boolean"}
+      }
+    },
+    "diagnostic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ruleId", "title", "severity", "message", "location", "remediation"],
+      "properties": {
+        "ruleId": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["error", "warning", "information"]},
+        "message": {"type": "string"},
+        "location": {
+          "type": "object", "additionalProperties": false,
+          "required": ["objectPath", "filePath", "line"],
+          "properties": {
+            "objectPath": {"type": "string"},
+            "filePath": {"type": ["string", "null"]},
+            "line": {"oneOf": [{"type": "integer", "minimum": 1}, {"type": "null"}]}
+          }
+        },
+        "remediation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["why", "how"],
+          "properties": {"why": {"type": "string"}, "how": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

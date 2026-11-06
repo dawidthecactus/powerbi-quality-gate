@@ -1,0 +1,4 @@
+relationship sampleSalesProduct
+	crossFilteringBehavior: bothDirections
+	fromColumn: Sales.ProductId
+	toColumn: Product.ProductId
