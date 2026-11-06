@@ -33,6 +33,9 @@ outputs:
   sarif-path:
     description: Absolute path to validated SARIF, or empty if no valid report was produced.
     value: ${{ steps.audit.outputs.sarif-path }}
+  evaluated:
+    description: "true only after a completed audit. false for structure/config/parser/tool failures even if SARIF exists."
+    value: ${{ steps.audit.outputs.evaluated }}
 
 runs:
   using: composite

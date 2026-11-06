@@ -163,32 +163,52 @@ jobs:
           fail-on-warning: 'true'
           sarif-output: .pbiq-ci-fail.sarif
 
+      - name: Reusable PBIQ action smoke (structural failure, not evaluated)
+        id: pbiq_invalid
+        continue-on-error: true
+        uses: ./
+        with:
+          project-path: examples/invalid-pbip-shortcut
+          sarif-output: .pbiq-ci-structural-failure.sarif
+
       - name: Verify reusable action outputs and policy enforcement
         shell: pwsh
         env:
           PASS_EXIT: ${{ steps.pbiq_pass.outputs.exit-code }}
           PASS_REPORT: ${{ steps.pbiq_pass.outputs.sarif-path }}
+          PASS_EVALUATED: ${{ steps.pbiq_pass.outputs.evaluated }}
           FAIL_EXIT: ${{ steps.pbiq_fail.outputs.exit-code }}
           FAIL_REPORT: ${{ steps.pbiq_fail.outputs.sarif-path }}
+          FAIL_EVALUATED: ${{ steps.pbiq_fail.outputs.evaluated }}
           FAIL_OUTCOME: ${{ steps.pbiq_fail.outcome }}
+          INVALID_EXIT: ${{ steps.pbiq_invalid.outputs.exit-code }}
+          INVALID_REPORT: ${{ steps.pbiq_invalid.outputs.sarif-path }}
+          INVALID_EVALUATED: ${{ steps.pbiq_invalid.outputs.evaluated }}
+          INVALID_OUTCOME: ${{ steps.pbiq_invalid.outcome }}
         run: |
           if ($env:PASS_EXIT -ne '0' -or $env:FAIL_EXIT -ne '1' -or
-              $env:FAIL_OUTCOME -ne 'failure') {
+              $env:INVALID_EXIT -ne '1' -or
+              $env:PASS_EVALUATED -ne 'true' -or $env:FAIL_EVALUATED -ne 'true' -or
+              $env:INVALID_EVALUATED -ne 'false' -or
+              $env:FAIL_OUTCOME -ne 'failure' -or $env:INVALID_OUTCOME -ne 'failure') {
             throw "Reusable action semantics unexpected: pass=$env:PASS_EXIT fail=$env:FAIL_EXIT outcome=$env:FAIL_OUTCOME"
           }
           foreach ($case in @(
-            @{ Path = $env:PASS_REPORT; Code = 0 }
-            @{ Path = $env:FAIL_REPORT; Code = 1 }
+            @{ Path = $env:PASS_REPORT; Code = 0; Evaluated = $true }
+            @{ Path = $env:FAIL_REPORT; Code = 1; Evaluated = $true }
+            @{ Path = $env:INVALID_REPORT; Code = 1; Evaluated = $false }
           )) {
             if (-not $case.Path -or -not (Test-Path -LiteralPath $case.Path -PathType Leaf)) {
               throw 'Reusable action did not leave the expected SARIF file.'
             }
             $sarif = Get-Content -LiteralPath $case.Path -Raw -Encoding utf8 | ConvertFrom-Json -Depth 50
-            if ($sarif.version -ne '2.1.0' -or $sarif.runs[0].properties.pbiqExitCode -ne $case.Code) {
+            if ($sarif.version -ne '2.1.0' -or
+                $sarif.runs[0].properties.pbiqExitCode -ne $case.Code -or
+                $sarif.runs[0].invocations[0].executionSuccessful -ne $case.Evaluated) {
               throw 'Reusable action SARIF outcome is inconsistent.'
             }
           }
-          Write-Host 'PASS reusable action: exit 0 report and exit 1 report were both preserved.'
+          Write-Host 'PASS reusable action: evaluated pass/fail and non-evaluated structural failure are distinct.'
 
       - name: Verify reusable action source contracts
         run: python scripts/verify-03-5-action.py
@@ -217,12 +237,15 @@ jobs:
         shell: pwsh
         env:
           PASS_EXIT: ${{ steps.pbiq_fabric_pass.outputs.exit-code }}
+          PASS_EVALUATED: ${{ steps.pbiq_fabric_pass.outputs.evaluated }}
           PASS_REPORT: ${{ steps.pbiq_fabric_pass.outputs.sarif-path }}
           FAIL_EXIT: ${{ steps.pbiq_fabric_fail.outputs.exit-code }}
+          FAIL_EVALUATED: ${{ steps.pbiq_fabric_fail.outputs.evaluated }}
           FAIL_REPORT: ${{ steps.pbiq_fabric_fail.outputs.sarif-path }}
           FAIL_OUTCOME: ${{ steps.pbiq_fabric_fail.outcome }}
         run: |
           if ($env:PASS_EXIT -ne '0' -or $env:FAIL_EXIT -ne '1' -or
+              $env:PASS_EVALUATED -ne 'true' -or $env:FAIL_EVALUATED -ne 'true' -or
               $env:FAIL_OUTCOME -ne 'failure') {
             throw "Fabric action contract failed: $env:PASS_EXIT $env:FAIL_EXIT $env:FAIL_OUTCOME"
           }

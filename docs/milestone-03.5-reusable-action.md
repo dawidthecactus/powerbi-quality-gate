@@ -24,7 +24,12 @@ not support SARIF or the YAML configuration engine.
 - `exit-code` is 0 (accepted), 1 (gate failed) or 2 (not evaluated / setup
   problem). `sarif-path` is an absolute file path when a valid SARIF document
   was produced, even for exit code 1 or 2; otherwise it is empty.
-- A quality-gate failure **fails the action** after writing both outputs.
+- `evaluated` is `true` only after the quality rules were successfully
+  evaluated, including a blocking warning-policy verdict (exit `1`).
+  It is `false` for failed structural validation or tool errors, even if a
+  valid empty SARIF report exists. Only upload to Code Scanning if
+  `evaluated=true`, otherwise a failed scan could clear existing alerts.
+- A quality-gate failure **fails the action** after writing all outputs.
   Do not interpret a zero-result SARIF as a passing gate: check `exit-code`.
 - SARIF files are not uploaded automatically. Upload is an explicit workflow
   step with `security-events: write` and Code Scanning entitlement.
@@ -37,7 +42,7 @@ not support SARIF or the YAML configuration engine.
 See [`docs/examples/pbiq-consumer-workflow.yml`](examples/pbiq-consumer-workflow.yml).
 
 The workflow uses `continue-on-error: true` on the action step so an exit 1
-report remains available for `upload-sarif`. It then enforces the saved
+report remains available for `upload-sarif` when `evaluated=true`. It then enforces the saved
 `exit-code` in a separate step. A direct caller that does not need SARIF
 upload can omit `continue-on-error` and fail the job immediately.
 

@@ -16,6 +16,12 @@ try:
     assert all(('  ' + name + ':') in manifest for name in required_inputs)
     assert 'steps.audit.outputs.exit-code' in manifest
     assert 'steps.audit.outputs.sarif-path' in manifest
+    assert 'steps.audit.outputs.evaluated' in manifest
+    assert 'evaluated=$evaluated' in runner
+    assert 'invocations[0].executionSuccessful' in runner
+    assert 'pbiq_invalid.outputs.evaluated' in workflow
+    consumer = (root / 'docs/examples/pbiq-consumer-workflow.yml').read_text(encoding='utf-8')
+    assert "steps.pbiq.outputs.evaluated == 'true'" in consumer
     assert 'GITHUB_WORKSPACE' in runner and 'GITHUB_OUTPUT' in runner
     assert '--sarif-source-root' in runner and '--format' in runner
     assert 'ConvertFrom-Json' in runner and 'pbiqExitCode' in runner

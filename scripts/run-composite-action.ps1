@@ -29,6 +29,7 @@ function Resolve-WorkspaceRelativePath {
 
 $exitCode = 2
 $sarifPath = ''
+$evaluated = 'false'
 try {
     if ([string]::IsNullOrWhiteSpace($env:GITHUB_WORKSPACE) -or
         [string]::IsNullOrWhiteSpace($env:PBIQ_ACTION_PATH)) {
@@ -94,22 +95,31 @@ try {
     $sarif = Get-Content -LiteralPath $destination -Raw -Encoding utf8 | ConvertFrom-Json -Depth 50
     if ($sarif.version -ne '2.1.0' -or @($sarif.runs).Count -ne 1 -or
         $sarif.runs[0].tool.driver.name -ne 'pbiq' -or
-        $sarif.runs[0].properties.pbiqExitCode -ne $exitCode) {
+        $sarif.runs[0].properties.pbiqExitCode -ne $exitCode -or
+        @($sarif.runs[0].invocations).Count -ne 1 -or
+        $sarif.runs[0].invocations[0].executionSuccessful -isnot [bool]) {
         throw 'PBIQ did not produce a valid SARIF 2.1.0 audit envelope.'
     }
+    $completed = [bool]$sarif.runs[0].invocations[0].executionSuccessful
+    if (($completed -and $exitCode -eq 2) -or (-not $completed -and $exitCode -eq 0)) {
+        throw 'PBIQ exit code and SARIF evaluation status disagree.'
+    }
+    $evaluated = if ($completed) { 'true' } else { 'false' }
     $sarifPath = $destination
-    Write-Host "PBIQ audit exit code: $exitCode. SARIF report generated."
+    Write-Host "PBIQ audit exit code: $exitCode. Evaluated: $evaluated. SARIF report generated."
 }
 catch {
     # Never silently treat infrastructure/argument failures as a clean audit.
     $exitCode = 2
     $sarifPath = ''
+    $evaluated = 'false'
     Write-Host ('::error title=PBIQ composite action::' + $_.Exception.Message.Replace("`r", ' ').Replace("`n", ' '))
 }
 finally {
     if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_OUTPUT)) {
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8 -Value "exit-code=$exitCode"
         Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8 -Value "sarif-path=$sarifPath"
+        Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8 -Value "evaluated=$evaluated"
     }
 }
 

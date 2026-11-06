@@ -51,7 +51,7 @@ A real consumer repository can use the action declared by the **root**
     fail-on-warning: 'true'
     sarif-output: reports/pbiq.sarif
 - name: Upload SARIF
-  if: ${{ always() && steps.pbiq.outputs.sarif-path != '' }}
+  if: ${{ always() && steps.pbiq.outputs.evaluated == 'true' && steps.pbiq.outputs.sarif-path != '' }}
   uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: ${{ steps.pbiq.outputs.sarif-path }}
@@ -69,9 +69,12 @@ to a privileged `pull_request_target` flow. If Code Scanning is unavailable,
 retain the SARIF as an ordinary CI artifact instead.
 
 The action builds PBIQ at its **pinned action revision**, runs SARIF audit,
-exposes `exit-code` and `sarif-path`, and then fails when the exit is nonzero.
+exposes `exit-code`, `sarif-path`, and `evaluated`, and then fails when the exit is nonzero.
 `continue-on-error: true` is intentionally used **only** to preserve the SARIF
-for upload; the final gate step enforces the saved result. Do not omit the
+for upload **only when `evaluated=true`**; the final gate step enforces the saved result.
+An exit `1` may also indicate structural validation failure, so do not gate uploads
+solely by exit code. An unsuccessful SARIF invocation must never replace an earlier
+Code Scanning result set with an empty report. Do not omit the
 final gate step. The action currently rebuilds the .NET CLI on every call.
 
 Before the v0.3 feature is released, replace the placeholder with an **actual
@@ -88,7 +91,8 @@ set +e
   --format sarif --sarif-source-root "$GITHUB_WORKSPACE" > pbiq-results.sarif
 status=$?
 set -e
-# Upload/retain pbiq-results.sarif, then enforce $status.
+# Retain SARIF for diagnostics. Upload to Code Scanning only when
+# .runs[0].invocations[0].executionSuccessful is true; then enforce $status.
 ```
 
 The source root must actually contain the PBIP or Fabric item directory.

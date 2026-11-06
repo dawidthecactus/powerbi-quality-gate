@@ -27,8 +27,10 @@ dotnet run -c Release --project src/PowerBIQualityGate.Cli -- audit `
   cannot annotate these until mapping improves. `pbiqUnlocatedResults` in
   run properties records the count.
 - On audit errors, a valid empty SARIF run is emitted with
-  `invocations[0].executionSuccessful = false`. Consumers **must check the
-  process exit code** and never interpret an empty result set as success.
+  `invocations[0].executionSuccessful = false`. consumers **must check the
+  process exit code and `invocations[0].executionSuccessful`**. Never upload
+  an unsuccessful run as a replacement Code Scanning analysis, even if exit
+  `1` denotes structural failure and the SARIF is valid and empty.
 - SARIF includes object names and remediation text, but intentionally no DAX
   expressions or absolute local file paths. Review before uploading reports
   for private/customer models.
@@ -60,9 +62,14 @@ jobs:
             --sarif-source-root "$GITHUB_WORKSPACE" > pbiq-results.sarif
           code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          if [[ -s pbiq-results.sarif ]] && jq -e '.runs[0].invocations[0].executionSuccessful == true' pbiq-results.sarif >/dev/null; then
+            echo "evaluated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "evaluated=false" >> "$GITHUB_OUTPUT"
+          fi
           exit 0
       - name: Upload annotations to GitHub Code Scanning
-        if: always() && steps.audit.outputs.exit_code != ''
+        if: always() && steps.audit.outputs.evaluated == 'true'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: pbiq-results.sarif

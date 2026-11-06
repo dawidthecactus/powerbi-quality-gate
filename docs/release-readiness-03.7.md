@@ -45,6 +45,8 @@ contains the published `v0.2.0-rc.1` baseline.
 - `scan`/`inspect` remain PBIP-only; `audit` accepts PBIP and local Fabric Git.
 - No recursive search of a repository with multiple Fabric workspaces.
 - No model refresh, DAX execution, Fabric REST authentication or data checks.
+- A successful SARIF invocation must be distinguished from a structural
+  validation failure before uploading. Gate on `evaluated=true`, not just exit 1.
 - GitHub upload depends on Code Scanning entitlement and correct permissions;
   SARIF output does not by itself create PR annotations.
 - Containment of source/config paths is lexical and not hardened against
