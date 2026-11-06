@@ -251,3 +251,8 @@ jobs:
 
       - name: Verify Fabric Git source contracts
         run: python scripts/verify-03-6-fabric.py
+
+      - name: Verify public documentation and release readiness
+        run: |
+          python scripts/verify-release-docs.py
+          python scripts/verify-03-7-readiness.py

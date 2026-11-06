@@ -2,10 +2,10 @@
 
 ## Status
 
-**Experimental, available in `feat/v0.3-json-contract` only.** The public
+**Experimental v0.3 source contract, implemented across stages 03.1–03.6.** The public
 [`v0.2.0-rc.1` release](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1)
-does **not** include `--format json`. A stable `v0.2.0` release should be
-validated separately before v0.3 work is merged to `main`.
+does **not** include `--format json`. Branch CI alone is not a release: check the verified GitHub tag,
+standalone distributions and external consumer integration separately.
 
 The initial feature extends **`audit` only**; `scan` and `inspect` remain
 text-only. Do not advertise JSON support in public release notes yet.
@@ -95,7 +95,8 @@ present, even on failure:
 
 `diagnostics[].location.objectPath` is a TOM object identity, **not** a source
 file. Stage 03.2 indexes verified TMDL declarations for supported SM rules.
-`filePath` is a slash-normalized, PBIP-directory-relative path and `line` is
+`filePath` is slash-normalized and relative to the PBIP project directory
+(or containing Fabric workspace), and `line` is
 1-based. Both remain `null` if a declaration is missing, ambiguous, or outside
 the project directory. PBIQ does not synthesize source coordinates from DAX,
 relationship endpoints, or object names alone. For a discovery failure, only
@@ -125,10 +126,11 @@ privacy boundaries, determinism and no fabricated source coordinates.
 ## Next stages
 
 - **03.2:** TMDL source-coordinate mapping and path normalization (implemented for SM rules; PBIR mapping is not included).
-- **03.3:** `.pbiq.yml` policy config, rule enable/disable and `--exclude`.
-- **03.4:** SARIF export and GitHub annotations based on validated locations.
-- **03.5:** reusable pinned GitHub Action.
-- **03.6:** native Fabric Git repositories without `.pbip` shortcut.
+- **03.3:** `.pbiq.yml` policy config, rule enable/disable and exact object exclusions (implemented; no `--exclude` CLI option).
+- **03.4:** SARIF export and GitHub annotation support (implemented).
+- **03.5:** reusable pinned GitHub Action (implemented).
+- **03.6:** native Fabric Git `.SemanticModel` directories without `.pbip` shortcut (implemented).
+- **03.7:** release readiness, documentation and standalone distribution smoke checks.
 
 ## Configuration addendum (03.3 alpha)
 

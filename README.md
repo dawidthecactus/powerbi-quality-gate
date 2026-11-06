@@ -4,10 +4,10 @@
 
 ### Power BI Quality Gate
 
-**Scan PBIP structure. Inspect TMDL metadata. Gate semantic-model quality.**
+**Scan PBIP structure. Inspect TMDL metadata. Audit PBIP and Fabric Git semantic models.**
 
-An offline, read-only CLI for Power BI Project (`.pbip`) files, built for analysts,
-BI developers and CI pipelines.
+An offline, read-only CLI for Power BI Project (`.pbip`) files and native
+Fabric Git `.SemanticModel` folders, built for analysts, BI developers and CI pipelines.
 
 [![CI](https://github.com/dawidthecactus/powerbi-quality-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/dawidthecactus/powerbi-quality-gate/actions/workflows/ci.yml)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
@@ -23,8 +23,11 @@ BI developers and CI pipelines.
 > [!IMPORTANT]
 > **Release status:** [v0.2.0-rc.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1)
 > is the public release candidate with self-contained Windows/Linux x64 packages.
-> **Stable v0.2.0 has not been released.** The v0.3 JSON output work is
-> experimental and is being developed separately from the release branch.
+> **Stable v0.2.0 has not been released.** The `0.3.0-alpha.1` source tree
+> implements JSON, verified source locations, YAML policies, SARIF, a composite
+> GitHub Action and Fabric Git model auditing. These are **not included** in the
+> public `v0.2.0-rc.1` binaries. Verify the exact release version and
+> assets before assuming v0.3 features are available.
 
 ## See what PBIQ does
 
@@ -68,17 +71,26 @@ applicability cannot always be confirmed. See [how to interpret the output](#und
 
 *The screenshots use the included synthetic examples and are cropped for readability. CLI output and policy results are not simulated.*
 
-## Developer preview: machine-readable audit reports (v0.3 work in progress)
+## Developer preview: v0.3.0 audit automation
 
-The `feat/v0.3-json-contract` branch introduces `pbiq audit <path> --format json`
-with an explicit [JSON contract v1](docs/audit-json-contract-v1.md). This is
-**not included in the public v0.2.0-rc.1 binaries**. The JSON API is intended
-for GitHub Actions, SARIF export and repository-wide quality reports. File and
-line locations are intentionally `null` until validated mapping is implemented.
+The v0.3 source tree provides **[JSON schema v1](docs/audit-json-contract-v1.md)**,
+**[SARIF 2.1.0](docs/milestone-03.4-sarif-github-annotations.md)** with verified
+TMDL file/line locations, **`.pbiq.yml`** policies and exclusions,
+**[a composite GitHub Action](docs/milestone-03.5-reusable-action.md)** and
+**[native Fabric Git](docs/milestone-03.6-fabric-git.md)** support for `audit`.
+These features are implemented in the v0.3 source and are **not in the
+public v0.2.0-rc.1 binaries**. Check the Releases page for an
+appropriately verified v0.3 prerelease when one becomes available.
+
+```powershell
+# After checking out and building a reviewed v0.3 source revision:
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/fabric-git/Revenue.SemanticModel --format json
+dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit examples/fabric-git/Revenue.SemanticModel --format sarif --sarif-source-root .
+```
 
 ## Quick start
 
-### Option A: build the current release candidate from source
+### Option A: build the checked-out source revision
 
 Requires [Git](https://git-scm.com/) and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 Run these commands from PowerShell 7 or a shell with `dotnet` available:
@@ -86,6 +98,7 @@ Run these commands from PowerShell 7 or a shell with `dotnet` available:
 ```powershell
 git clone https://github.com/dawidthecactus/powerbi-quality-gate.git
 cd powerbi-quality-gate
+# For unreleased v0.3 options, check out the reviewed v0.3 source branch/commit.
 
 dotnet restore
 dotnet build -c Release
@@ -138,8 +151,9 @@ and the candidate-to-stable release policy.
 
 ## Three commands, one workflow
 
-All commands take a `.pbip` file or a directory containing **exactly one**
-`.pbip` entry point. Replace `<path>` with your own project path.
+`scan` and `inspect` accept PBIP inputs only. `audit` also accepts a native
+Fabric Git `.SemanticModel` folder or a directory containing exactly one
+such model and no PBIP shortcut. Replace `<path>` with your own local input.
 
 | Command | Purpose | Useful options |
 | --- | --- | --- |
@@ -147,7 +161,7 @@ All commands take a `.pbip` file or a directory containing **exactly one**
 | `pbiq inspect <path>` | Lightweight, local TMDL declaration inventory | `--no-color` |
 | `pbiq inspect <path> --tom` | Semantic-model metadata through the official Microsoft TOM reader | `--no-color` |
 | `pbiq inspect <path> --measures` | Privacy-conscious **aggregate** measure formatting and type inventory | `--no-color` |
-| `pbiq audit <path>` | Four semantic-model metadata checks (`SM-001`–`SM-004`) | `--details`, `--quiet`, `--fail-on-warning`, `--min-measure-coverage 95`, `--no-color` |
+| `pbiq audit <path>` | Four semantic-model metadata checks (`SM-001`–`SM-004`) | `--format json`, `--format sarif`, `--sarif-source-root .`, `--config .pbiq.yml`, `--fail-on-warning`, `--min-measure-coverage 95`, `--details`, `--quiet` |
 
 `inspect --tom` and `inspect --measures` cannot be used together.
 `audit --quiet` and `audit --details` are also mutually exclusive.
@@ -218,9 +232,9 @@ and Ubuntu**. See the **[ready-to-adapt GitHub Actions example](docs/ci-integrat
 
 - **Read-only and offline:** no Power BI service sign-in, data refresh, model
   writeback or DAX execution.
-- **Local TMDL required for `inspect` and `audit`:** standalone PBIR, TMSL,
-  external model connections and Fabric exports without `.pbip` are not
-  supported by those commands.
+- **Local TMDL required:** `inspect` needs PBIP with TMDL; `audit` accepts
+  PBIP with TMDL or a local Fabric Git `.SemanticModel` folder. Standalone
+  PBIR, TMSL-only and external/live model connections are not supported.
 - **Metadata checks, not a full validator:** structural checks do not implement
   the entire Microsoft JSON Schema; the four SM rules are conservative,
   inspectable suggestions, not proof of a model defect.
@@ -239,6 +253,11 @@ and Ubuntu**. See the **[ready-to-adapt GitHub Actions example](docs/ci-integrat
 | **[CLI command reference](docs/commands.md)** | Find every command mode, option and exit-code contract |
 | **[Output & coverage guide](docs/output-guide.md)** | Interpret PASS, warnings, Unknown types and SM-002 coverage |
 | **[CI integration](docs/ci-integration.md)** | Add a pinned PBIQ quality gate to GitHub Actions or local scripts |
+| [JSON contract v1](docs/audit-json-contract-v1.md) | Understand structured diagnostics, suppression counts and source locations |
+| [SARIF & Code Scanning](docs/milestone-03.4-sarif-github-annotations.md) | Export findings to SARIF and understand GitHub annotation limits |
+| [Reusable GitHub Action](docs/milestone-03.5-reusable-action.md) | Use PBIQ from a checked-out consumer repository |
+| [Fabric Git input](docs/milestone-03.6-fabric-git.md) | Audit native `.SemanticModel` items without PBIP |
+| [v0.3 release readiness](docs/release-readiness-03.7.md) | See remaining PR, package and prerelease gates |
 | [Project structure checks](docs/current-checks.md) | Understand `PBI-001`–`PBI-018` |
 | [TMDL and TOM inspector](docs/tom-inspector-preview.md) | Explore supported inspection modes |
 | [Measure inspection](docs/measure-inspection-02.4.5.md) | Understand static/dynamic/missing formats and type coverage |

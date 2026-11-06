@@ -51,6 +51,9 @@ jobs:
       - name: Verify public documentation and screenshot links
         run: python3 scripts/verify-release-docs.py
 
+      - name: Verify v0.3 release readiness and binary smoke contract
+        run: python3 scripts/verify-03-7-readiness.py
+
   verify:
     name: Verify (${{ matrix.os }})
     needs: metadata

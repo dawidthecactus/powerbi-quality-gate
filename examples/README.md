@@ -43,3 +43,18 @@ structural failure before any TOM audit occurs.
 
 For policy/CI usage and the `0`/`1`/`2` contract, see
 [quality-gate CI guidance](../docs/quality-gate-ci.md).
+
+## Native Fabric Git semantic models (v0.3 development source)
+
+Two public synthetic Fabric Git items have **no `.pbip` shortcut**:
+
+- `fabric-git/Revenue.SemanticModel`: expected audit exit `0`.
+- `fabric-git-warning/Warning.SemanticModel`: warning-policy exit `1`.
+
+```powershell
+dotnet run -c Release --project src/PowerBIQualityGate.Cli -- audit examples/fabric-git/Revenue.SemanticModel --format json
+dotnet run -c Release --project src/PowerBIQualityGate.Cli -- audit examples/fabric-git-warning/Warning.SemanticModel --format sarif --sarif-source-root . --fail-on-warning
+```
+
+These fixtures are used by Windows/Linux CI and standalone-binary
+release smoke tests. See [03.6 documentation](../docs/milestone-03.6-fabric-git.md).

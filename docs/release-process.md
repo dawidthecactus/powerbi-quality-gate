@@ -1,90 +1,95 @@
-# PBIQ release process: v0.2.0
+# PBIQ release process and gates
 
-The release workflow is `.github/workflows/release.yml`. The current candidate
-is `0.2.0-rc.1` (in the CLI `.csproj`). Release archives are .NET 10,
-self-contained, single-file, untrimmed executables for Windows x64 and Linux
-x64. No .NET SDK or runtime is required by the installed app.
+The GitHub workflow `.github/workflows/release.yml` builds self-contained,
+single-file **untrimmed** .NET 10 executables for Windows x64 and Linux x64.
+It verifies extracted archives and SHA-256 checksums, not merely the build
+workspace. macOS/ARM64 artifacts are not currently provided.
 
-For the 02.5.1/02.5.2 readiness changes and smoke cases, see
-[release readiness](release-readiness-02.5.1-2.md).
+## Release states at the start of 03.7 stabilisation
 
-## 1. Before creating a tag
+- **Published:** `v0.2.0-rc.1` is a public release candidate with **pre-v0.3**
+  CLI behavior. Stable `v0.2.0` has not been released.
+- **Development:** the CLI project declares `0.3.0-alpha.1`, with JSON, YAML,
+  SARIF, GitHub Action and native Fabric Git input. An implementation passing
+  branch CI is **not yet a published release**.
+- **Never rewrite tags** or imply newer features exist in the RC binary.
 
-1. Commit the tested code and check normal CI on `main` is green on both OSes.
-2. Trigger a manual **dry run**, which generates artifacts but publishes no
-   release:
+## 1. Before the v0.3 alpha tag
+
+1. Complete and review 03.1–03.6, including release-readiness docs and
+   package-smoke improvements. Run build with warnings-as-errors, 406+ xUnit
+   tests, JSON/SARIF/Fabric smoke and source-contract checks.
+2. Open a **single PR** from the consolidated 03.7 branch to `main`. Require
+   Windows and Ubuntu CI, review all changed files and reconcile user docs.
+   The linear feature-branch ancestry needs **no six-way merge**.
+3. Independently test the composite Action with an **external consumer repo**
+   using a reviewed SHA and synthetic PBIP and Fabric models. Verify exit 0/1/2,
+   SARIF preservation and source locations; upload to Code Scanning only when
+   safe and entitled. Do not claim this is tested until completed.
+4. Run release **dry run** from the tested feature branch or PR head:
 
    ```powershell
-   gh workflow run release.yml --ref main
-   gh run list --workflow release.yml --limit 3
+   gh workflow run release.yml --ref chore/v0.3-release-readiness
+   gh run list --workflow release.yml --limit 5
    gh run watch <RUN_ID>
    ```
 
-3. Require success in: `metadata`, both `Verify` jobs, both `Package` jobs and
-   `Verify SHA256 artifacts`. Package jobs unpack their archives and run real
-   executables against the public examples, including expected error exits.
-4. Download the dry-run packages and SHA256 file, confirm checksums, and try
-   the Windows executable from outside your source checkout.
-5. Do not add private PBIP, measure names, TMDL or validation CSVs to releases.
+   `workflow_dispatch` uploads artifacts **without creating a GitHub Release**.
+   Require success of `metadata`, both `Verify` jobs, both `Package` jobs,
+   and checksums. The package smoke tests should cover text, JSON, SARIF,
+   configuration and Fabric Git **using extracted standalone executables**.
+5. Download the dry-run artifacts and verify Windows binary/sha256 **outside
+   the source checkout**, including a directory with spaces in its name.
+6. Merge the reviewed PR to `main`, rerun both normal CI and release dry run
+   on `main`, and inspect final release notes and the `--version` output.
 
-## 2. RC tag (only after all RC checks)
+## 2. Tag only after explicit approval
 
-While `<Version>0.2.0-rc.1</Version>` is checked in and `main` is clean:
+Only after the release gates are green, and only when `main` contains the
+checked-in `<Version>0.3.0-alpha.1</Version>`:
 
 ```powershell
 git switch main
 git pull --ff-only
 git status --short
-git tag -a v0.2.0-rc.1 -m "PBIQ v0.2.0 release candidate 1"
-git push origin v0.2.0-rc.1
+git tag -a v0.3.0-alpha.1 -m "PBIQ v0.3.0 alpha 1"
+git push origin v0.3.0-alpha.1
 ```
 
-The workflow checks the tag matches `<Version>`, that the tagged commit is
-reachable from `main`, reruns all checks, and uploads a **GitHub prerelease**:
+**Do not run these tag commands during the stabilisation branch stage.**
+The tag workflow validates that `v<Version>` matches the CLI project and
+that the tagged commit is reachable from `origin/main`. A pre-release tag
+is published as a GitHub **prerelease**, not a stable release.
+
+## 3. Artifact verification
+
+Expected files:
 
 - `pbiq-win-x64.zip`
 - `pbiq-linux-x64.tar.gz`
 - `SHA256SUMS.txt`
 
-Check it with `gh release view v0.2.0-rc.1`. Do not retarget tags.
-
-## 3. Stable v0.2.0 (future gated step)
-
-After RC installation checks, release notes and any fixes have been verified:
-
-1. Set `<Version>0.2.0</Version>` in
-   `src/PowerBIQualityGate.Cli/PowerBIQualityGate.Cli.csproj`.
-2. Run local build/test/format and the full **manual release dry run** again.
-3. Commit the version bump to `main` and require green CI.
-4. Only then create `v0.2.0` from the current main commit and push that tag.
-
-The workflow publishes a **normal GitHub Release** for `v0.2.0`, not a
-prerelease. Tagging is intentionally a separate user-approved action.
-
-## 4. Check downloaded packages
-
-On Linux, download all three release assets into the same directory:
-
-```bash
-sha256sum -c SHA256SUMS.txt
-```
-
-On Windows, check the archive hash against the matching line in the checksum
-file:
+Verify the published hashes against the manifest:
 
 ```powershell
 Get-FileHash -Algorithm SHA256 .\pbiq-win-x64.zip
 Get-Content .\SHA256SUMS.txt
 ```
 
-A checksum is a corruption check, not a cryptographic signature of the
-publisher. A passing `pbiq audit` covers only the limited metadata rules; it
-does not execute DAX or validate a full Power BI refresh.
+```bash
+sha256sum -c SHA256SUMS.txt
+```
 
-## Supported runtime / policy
+The checksum proves consistency against the published manifest, not signer
+identity. Keep private PBIP/TMDL files and customer metadata out of public
+release archives and release notes.
 
-- Windows x64 and Linux x64 only, no macOS/ARM64 yet.
-- `PublishTrimmed=false` for TOM compatibility.
-- `workflow_dispatch` produces artifacts only, never publishes a Release.
-- The workflow has read-only permissions except for the tag-only publish job.
-- Tags are immutable release references. Do not move an existing tag.
+## 4. Future stable release
+
+`v0.3.0-alpha.1` remains prerelease. A future stable version requires its
+own explicit SemVer bump, tested commit, CI and release dry run followed by
+approval and a **new immutable tag**. A successful PBIQ audit certifies only
+its implemented metadata policy, not data refresh or DAX correctness.
+
+For historical v0.2.0 release readiness, see
+[release-readiness-02.5.1-2.md](release-readiness-02.5.1-2.md).
