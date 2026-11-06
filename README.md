@@ -13,19 +13,18 @@ BI developers and CI pipelines.
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![Windows and Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-374151)
 [![MIT](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
-![Release candidate](https://img.shields.io/badge/current%20source-0.2.0--rc.1-f59e0b)
+![Public RC](https://img.shields.io/badge/public%20RC-0.2.0--rc.1-f59e0b)
+![Development](https://img.shields.io/badge/development-0.3.0--alpha.1-2563eb)
 
 **[Quick start](#quick-start) · [Commands](#three-commands-one-workflow) · [Quality gates](#use-it-as-a-quality-gate) · [Docs](#documentation)**
 
 </div>
 
 > [!IMPORTANT]
-> **Release status:** the source currently targets `0.2.0-rc.1`. The Windows/Linux
-> packages have passed an Actions dry run, but **v0.2.0 has not been published
-> as a GitHub Release**. Build from source to try the latest functionality, or
-> use a temporary artifact from a successful [Release workflow](https://github.com/dawidthecactus/powerbi-quality-gate/actions/workflows/release.yml)
-> (GitHub sign-in may be required). Do not confuse a dry-run artifact with an
-> official release.
+> **Release status:** [v0.2.0-rc.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1)
+> is the public release candidate with self-contained Windows/Linux x64 packages.
+> **Stable v0.2.0 has not been released.** The v0.3 JSON output work is
+> experimental and is being developed separately from the release branch.
 
 ## See what PBIQ does
 
@@ -68,6 +67,14 @@ applicability cannot always be confirmed. See [how to interpret the output](#und
 </details>
 
 *The screenshots use the included synthetic examples and are cropped for readability. CLI output and policy results are not simulated.*
+
+## Developer preview: machine-readable audit reports (v0.3 work in progress)
+
+The `feat/v0.3-json-contract` branch introduces `pbiq audit <path> --format json`
+with an explicit [JSON contract v1](docs/audit-json-contract-v1.md). This is
+**not included in the public v0.2.0-rc.1 binaries**. The JSON API is intended
+for GitHub Actions, SARIF export and repository-wide quality reports. File and
+line locations are intentionally `null` until validated mapping is implemented.
 
 ## Quick start
 

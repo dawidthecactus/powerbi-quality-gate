@@ -134,5 +134,9 @@ jobs:
             -Iterations 2 -Warmups 0 `
             -OutputDirectory (Join-Path $env:RUNNER_TEMP 'pbiq-measure-validation')
 
+      - name: JSON audit contract smoke (Windows and Linux)
+        shell: pwsh
+        run: ./scripts/test-audit-json.ps1
+
       - name: Verify formatting
         run: dotnet format whitespace --verify-no-changes --no-restore
