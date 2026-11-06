@@ -1,7 +1,8 @@
-# PBIQ 02.5.3.3: genuine CLI terminal screenshot.
-# Execute only in a clean checkout containing the repository's public fixtures.
-# Run from repository root after `dotnet build -c Release`.
-# NEVER replace these commands with a private .pbip path.
+# PBIQ 02.5.3.3: genuine CLI screenshot on public synthetic fixtures.
+# No customer PBIP, filenames, DAX or model paths are used here.
+# CLI output and expected exit codes are verified BEFORE VHS recording in Actions.
+# VHS v0.12.1 has an unreliable Wait+Screen matcher after terminal scrolling.
+# Use a bounded 3s render settle, then visually inspect the resulting PNG.
 Output assets/demos/.capture-inspect-measures.gif
 Require dotnet
 Set Shell "bash"
@@ -22,8 +23,6 @@ Enter
 Show
 Type "pbiq inspect examples/valid-pbir-tmdl --measures"
 Enter
-# Match a stable label; unescaped slashes inside /regex/ break VHS parsing.
-Wait+Screen@30s /Measures inspected:/
-Sleep 700ms
+Sleep 3s
 Screenshot assets/screenshots/inspect-measures.png
 Sleep 300ms

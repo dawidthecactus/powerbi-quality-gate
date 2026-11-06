@@ -28,6 +28,31 @@ jobs:
           dotnet restore
           dotnet build -c Release --no-restore -warnaserror
 
+      - name: Verify real CLI outputs and exit codes before recording
+        shell: bash
+        run: |
+          set -euo pipefail
+          dll='src/PowerBIQualityGate.Cli/bin/Release/net10.0/pbiq.dll'
+          verify_case() {
+            local label="$1" expected="$2" marker="$3"
+            shift 3
+            local output exit_code
+            set +e
+            output="$(dotnet "$dll" "$@" --no-color 2>&1)"
+            exit_code=$?
+            set -e
+            if [[ "$exit_code" -ne "$expected" || "$output" != *"$marker"* ]]; then
+              printf 'FAIL %s: expected exit %s and output marker %s, got exit %s\n' \
+                "$label" "$expected" "$marker" "$exit_code" >&2
+              exit 1
+            fi
+            printf 'PASS %s: exit %s\n' "$label" "$exit_code"
+          }
+          verify_case scan 0 'STRUCTURE VALIDATION: PASS' scan examples/valid-pbir-tmdl
+          verify_case inspect 0 'Measures inspected: 2/2' inspect examples/valid-pbir-tmdl --measures
+          verify_case audit-pass 0 'PASS WITH COVERAGE GAPS' audit examples/valid-pbir-tmdl
+          verify_case audit-warning 1 'FAIL (WARNING POLICY)' audit examples/warning-pbir-tmdl --fail-on-warning
+
       - name: Install VHS terminal recorder
         uses: charmbracelet/vhs-action@v2.1.1
         with:

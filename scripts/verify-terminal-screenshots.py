@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dependency-free structural QA for public PBIQ terminal screenshots.
 
-Does not OCR or inspect the rendered text. Human preview is required before
-committing, to ensure no blank output, clipped lines, or unexpected metadata.
+This checks PNG headers, sizes and dimensions only. Human visual review is
+required: it cannot prove the screenshot is complete, colorful or legible.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import struct
 import sys
 
 FILES = {
-    "scan-color.png": (1500, 1120),
+    "scan-color.png": (1500, 1420),
     "inspect-measures.png": (2040, 510),
     "audit-summary-color.png": (1530, 830),
     "audit-warning-color.png": (1530, 830),
@@ -37,12 +37,12 @@ def validate_file(path: Path, expected_dimensions: tuple[int, int]) -> None:
         raise ValueError(
             f"Unexpected dimensions for {path.name}: {dimensions}; expected near {expected_dimensions}"
         )
-    print(f"PASS {path.name}: {dimensions[0]}x{dimensions[1]} · {size:,} bytes")
+    print(f"PASS {path.name}: {dimensions[0]}x{dimensions[1]} | {size:,} bytes")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path, help="Folder containing four genuine PNG files")
+    parser.add_argument("directory", type=Path, help="Folder containing four real PNG files")
     args = parser.parse_args()
     try:
         for filename, dimensions in FILES.items():
