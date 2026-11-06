@@ -10,7 +10,7 @@ namespace PowerBIQualityGate.Cli.Rendering;
 
 /// <summary>
 /// Schema-v1 machine output for audit. Reads the already-evaluated quality
-/// result; it never reruns quality rules or guesses TMDL file/line locations.
+/// result; it never reruns quality rules or invents TMDL coordinates.
 /// </summary>
 public static class AuditJsonRenderer
 {
@@ -29,7 +29,7 @@ public static class AuditJsonRenderer
         TomModelSnapshot snapshot,
         ModelQualityAuditResult audit,
         QualityGateDecision decision,
-        ModelAuditCoverage coverage)
+        ModelAuditCoverage coverage, string? definitionDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(pbipPath);
@@ -42,6 +42,15 @@ public static class AuditJsonRenderer
         var inspection = coverage.Sm002Inspection;
         var assessment = coverage.Sm002Assessment;
         var candidateCount = decision.CandidateMeasures;
+        var resolver = definitionDirectory is null ? null :
+            new TmdlSourceLocationResolver(definitionDirectory,
+                Path.GetDirectoryName(Path.GetFullPath(pbipPath))!);
+
+        AuditLocationV1 Location(ModelQualityFinding finding)
+        {
+            var coordinate = resolver?.Resolve(finding.RuleCode, finding.Location, snapshot);
+            return new AuditLocationV1(finding.Location, coordinate?.FilePath, coordinate?.Line);
+        }
 
         var report = new AuditReportV1(
             SchemaVersion,
@@ -70,8 +79,7 @@ public static class AuditJsonRenderer
                 finding.RuleTitle,
                 Severity(finding.Severity),
                 finding.Message,
-                // Object locations from TOM are not filesystem coordinates.
-                new AuditLocationV1(finding.Location, null, null),
+                Location(finding),
                 new AuditRemediationV1(finding.WhyItMatters, finding.HowToFix))).ToArray(),
             null);
 

@@ -47,16 +47,18 @@ public sealed class AuditJsonContractTests
     }
 
     [Fact]
-    public void AuditJsonNeverInventsSourceLinesOrFilePaths()
+    public void AuditJsonMapsKnownColumnToRelativeTmdlFileAndLine()
     {
         var (_, json, _, _) = Run("valid-pbir-tmdl");
         using var doc = JsonDocument.Parse(json);
-        var first = doc.RootElement.GetProperty("diagnostics")[0];
-        var location = first.GetProperty("location");
-        Assert.False(string.IsNullOrWhiteSpace(location.GetProperty("objectPath").GetString()));
-        Assert.Equal(JsonValueKind.Null, location.GetProperty("filePath").ValueKind);
-        Assert.Equal(JsonValueKind.Null, location.GetProperty("line").ValueKind);
-        Assert.Equal("information", first.GetProperty("severity").GetString());
+        var diagnostic = doc.RootElement.GetProperty("diagnostics")
+            .EnumerateArray()
+            .Single(item => item.GetProperty("location").GetProperty("objectPath").GetString() == "Sales[ProductId]");
+        var location = diagnostic.GetProperty("location");
+        Assert.Equal("Example.SemanticModel/definition/tables/Sales.tmdl",
+            location.GetProperty("filePath").GetString());
+        Assert.Equal(8, location.GetProperty("line").GetInt32());
+        Assert.Equal("information", diagnostic.GetProperty("severity").GetString());
     }
 
     [Fact]

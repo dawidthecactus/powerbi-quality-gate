@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dawidthecactus/powerbi-quality-gate/blob/main/docs/schemas/audit-report.v1.schema.json",
   "title": "PBIQ audit JSON report v1",
-  "description": "Machine-readable result of pbiq audit --format json. File coordinates are null until validated source mapping exists.",
+  "description": "Machine-readable result of pbiq audit --format json. File coordinates are provided only for uniquely matched TMDL declarations; otherwise null.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "tool", "command", "project", "result", "summary", "policy", "coverage", "rules", "diagnostics", "failure"],

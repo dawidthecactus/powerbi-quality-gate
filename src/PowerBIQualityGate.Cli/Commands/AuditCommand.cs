@@ -188,10 +188,10 @@ public static class AuditCommand
             return 2;
         }
 
+        var definition = Path.Combine(validation.SemanticModelDirectory, "definition");
         TomModelSnapshot snapshot;
         try
         {
-            var definition = Path.Combine(validation.SemanticModelDirectory, "definition");
             snapshot = new TomModelReader().Read(definition);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
@@ -244,7 +244,7 @@ public static class AuditCommand
         if (jsonOutput is not null)
         {
             AuditJsonRenderer.RenderSuccess(jsonOutput, discovery.PbipPath!, snapshot, result,
-                decision, coverage);
+                decision, coverage, definition);
             return decision.ExitCode;
         }
 

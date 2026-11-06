@@ -94,10 +94,12 @@ present, even on failure:
 ### Finding locations and privacy
 
 `diagnostics[].location.objectPath` is a TOM object identity, **not** a source
-file. `filePath` and `line` are explicitly `null` until stage 03.2 can prove
-an accurate mapping to TMDL/PBIR. Do not generate SARIF locations from
-`objectPath` alone. For a discovery failure, only the base file name is
-included in `project.name`, not the full requested directory path.
+file. Stage 03.2 indexes verified TMDL declarations for supported SM rules.
+`filePath` is a slash-normalized, PBIP-directory-relative path and `line` is
+1-based. Both remain `null` if a declaration is missing, ambiguous, or outside
+the project directory. PBIQ does not synthesize source coordinates from DAX,
+relationship endpoints, or object names alone. For a discovery failure, only
+the base file name is included in `project.name`, not the input directory.
 
 JSON intentionally excludes DAX expressions, raw TOM objects and source data.
 It **can contain measure/column names and diagnostic messages**, so review
@@ -122,7 +124,7 @@ privacy boundaries, determinism and no fabricated source coordinates.
 
 ## Next stages
 
-- **03.2:** true TMDL/PBIR source-coordinate mapping and path normalization.
+- **03.2:** TMDL source-coordinate mapping and path normalization (implemented for SM rules; PBIR mapping is not included).
 - **03.3:** `.pbiq.yml` policy config, rule enable/disable and `--exclude`.
 - **03.4:** SARIF export and GitHub annotations based on validated locations.
 - **03.5:** reusable pinned GitHub Action.
