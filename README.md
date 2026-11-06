@@ -13,21 +13,14 @@ Fabric Git `.SemanticModel` folders, built for analysts, BI developers and CI pi
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![Windows and Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-374151)
 [![MIT](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
-![Public RC](https://img.shields.io/badge/public%20RC-0.2.0--rc.1-f59e0b)
-![Development](https://img.shields.io/badge/development-0.3.0--alpha.1-2563eb)
+[![Public alpha](https://img.shields.io/badge/public%20alpha-0.3.0--alpha.1-2563eb)](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1)
 
-**[Quick start](#quick-start) · [Commands](#three-commands-one-workflow) · [Quality gates](#use-it-as-a-quality-gate) · [Docs](#documentation)**
+**[5-minute Quick Start](docs/quick-start.md) · [Commands](#three-commands-one-workflow) · [Quality gates](#use-it-as-a-quality-gate) · [Docs](#documentation)**
 
 </div>
 
 > [!IMPORTANT]
-> **Release status:** [v0.2.0-rc.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1)
-> is the public release candidate with self-contained Windows/Linux x64 packages.
-> **Stable v0.2.0 has not been released.** The `0.3.0-alpha.1` source tree
-> implements JSON, verified source locations, YAML policies, SARIF, a composite
-> GitHub Action and Fabric Git model auditing. These are **not included** in the
-> public `v0.2.0-rc.1` binaries. Verify the exact release version and
-> assets before assuming v0.3 features are available.
+> **Latest published release:** [v0.3.0-alpha.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1) is available as self-contained **Windows x64** and **Linux x64** binaries. It includes JSON, SARIF, YAML policy configuration, source locations, GitHub Actions and native Fabric Git auditing. **This is an alpha prerelease, not a stable production validator.** The older [v0.2.0-rc.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1) lacks these features. See the [Quick Start](docs/quick-start.md).
 
 ## See what PBIQ does
 
@@ -71,16 +64,14 @@ applicability cannot always be confirmed. See [how to interpret the output](#und
 
 *The screenshots use the included synthetic examples and are cropped for readability. CLI output and policy results are not simulated.*
 
-## Developer preview: v0.3.0 audit automation
+## New in v0.3.0-alpha.1: audit automation
 
 The v0.3 source tree provides **[JSON schema v1](docs/audit-json-contract-v1.md)**,
 **[SARIF 2.1.0](docs/milestone-03.4-sarif-github-annotations.md)** with verified
 TMDL file/line locations, **`.pbiq.yml`** policies and exclusions,
 **[a composite GitHub Action](docs/milestone-03.5-reusable-action.md)** and
 **[native Fabric Git](docs/milestone-03.6-fabric-git.md)** support for `audit`.
-These features are implemented in the v0.3 source and are **not in the
-public v0.2.0-rc.1 binaries**. Check the Releases page for an
-appropriately verified v0.3 prerelease when one becomes available.
+These features are **included in the published [v0.3.0-alpha.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1) prerelease**, but not in the older v0.2.0-rc.1 binaries.
 
 ```powershell
 # After checking out and building a reviewed v0.3 source revision:
@@ -90,7 +81,9 @@ dotnet run --no-build -c Release --project src/PowerBIQualityGate.Cli -- audit e
 
 ## Quick start
 
-### Option A: build the checked-out source revision
+**Fastest installation:** follow the [5-minute Quick Start](docs/quick-start.md) to download a standalone binary, verify SHA256 and audit a synthetic or local Power BI model. No .NET SDK is required.
+
+### Option A: build from source
 
 Requires [Git](https://git-scm.com/) and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 Run these commands from PowerShell 7 or a shell with `dotnet` available:
@@ -98,8 +91,6 @@ Run these commands from PowerShell 7 or a shell with `dotnet` available:
 ```powershell
 git clone https://github.com/dawidthecactus/powerbi-quality-gate.git
 cd powerbi-quality-gate
-# For unreleased v0.3 options, check out the reviewed v0.3 source branch/commit.
-
 dotnet restore
 dotnet build -c Release
 
@@ -113,11 +104,10 @@ are guaranteed to open or refresh in Power BI Desktop.
 
 For detailed installation steps, see **[Getting started](docs/getting-started.md)**.
 
-### Option B: standalone executable (when a release is available)
+### Option B: standalone v0.3 alpha executable
 
-Download `pbiq-win-x64.zip` or `pbiq-linux-x64.tar.gz` from
-[GitHub Releases](https://github.com/dawidthecactus/powerbi-quality-gate/releases)
-**after** a release is published. These are self-contained x64 builds and do
+Download `pbiq-win-x64.zip` or `pbiq-linux-x64.tar.gz` from the
+[published v0.3.0-alpha.1 release](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1), along with `SHA256SUMS.txt`. These are self-contained x64 builds and do
 not require a .NET runtime on the target machine.
 
 <details>
@@ -249,6 +239,7 @@ and Ubuntu**. See the **[ready-to-adapt GitHub Actions example](docs/ci-integrat
 
 | Guide | Read when you want to... |
 | --- | --- |
+| **[5-minute Quick Start](docs/quick-start.md)** | Download v0.3 alpha, verify checksum and run the first audit without installing .NET |
 | **[Getting started](docs/getting-started.md)** | Install or build PBIQ, verify a first run, and troubleshoot basic errors |
 | **[CLI command reference](docs/commands.md)** | Find every command mode, option and exit-code contract |
 | **[Output & coverage guide](docs/output-guide.md)** | Interpret PASS, warnings, Unknown types and SM-002 coverage |
