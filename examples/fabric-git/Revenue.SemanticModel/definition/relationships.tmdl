@@ -1,0 +1,3 @@
+relationship sampleSalesProduct
+	fromColumn: Sales.ProductId
+	toColumn: Product.ProductId

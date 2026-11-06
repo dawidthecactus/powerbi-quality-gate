@@ -192,3 +192,62 @@ jobs:
 
       - name: Verify reusable action source contracts
         run: python scripts/verify-03-5-action.py
+
+      - name: Fabric Git semantic model audit smoke (Windows and Linux)
+        shell: pwsh
+        run: ./scripts/test-audit-fabric.ps1
+
+      - name: Reusable PBIQ action smoke (Fabric Git item)
+        id: pbiq_fabric_pass
+        uses: ./
+        with:
+          project-path: examples/fabric-git/Revenue.SemanticModel
+          sarif-output: .pbiq-ci-fabric-pass.sarif
+
+      - name: Reusable PBIQ action smoke (Fabric warning policy)
+        id: pbiq_fabric_fail
+        continue-on-error: true
+        uses: ./
+        with:
+          project-path: examples/fabric-git-warning/Warning.SemanticModel
+          fail-on-warning: 'true'
+          sarif-output: .pbiq-ci-fabric-fail.sarif
+
+      - name: Verify Fabric Git action outputs and source paths
+        shell: pwsh
+        env:
+          PASS_EXIT: ${{ steps.pbiq_fabric_pass.outputs.exit-code }}
+          PASS_REPORT: ${{ steps.pbiq_fabric_pass.outputs.sarif-path }}
+          FAIL_EXIT: ${{ steps.pbiq_fabric_fail.outputs.exit-code }}
+          FAIL_REPORT: ${{ steps.pbiq_fabric_fail.outputs.sarif-path }}
+          FAIL_OUTCOME: ${{ steps.pbiq_fabric_fail.outcome }}
+        run: |
+          if ($env:PASS_EXIT -ne '0' -or $env:FAIL_EXIT -ne '1' -or
+              $env:FAIL_OUTCOME -ne 'failure') {
+            throw "Fabric action contract failed: $env:PASS_EXIT $env:FAIL_EXIT $env:FAIL_OUTCOME"
+          }
+          foreach ($case in @(
+            @{ Path = $env:PASS_REPORT; Code = 0; Prefix = 'examples/fabric-git/' }
+            @{ Path = $env:FAIL_REPORT; Code = 1; Prefix = 'examples/fabric-git-warning/' }
+          )) {
+            if (-not $case.Path -or -not (Test-Path -LiteralPath $case.Path -PathType Leaf)) {
+              throw 'Fabric action report missing.'
+            }
+            $report = Get-Content -LiteralPath $case.Path -Raw -Encoding utf8 | ConvertFrom-Json -Depth 50
+            if ($report.version -ne '2.1.0' -or
+                $report.runs[0].properties.pbiqExitCode -ne $case.Code) {
+              throw 'Fabric SARIF action result is inconsistent.'
+            }
+            $uris = @($report.runs[0].results | ForEach-Object {
+              if (@($_.locations).Count -gt 0) { $_.locations[0].physicalLocation.artifactLocation.uri }
+            })
+            if ($uris.Count -eq 0 -or -not @($uris | Where-Object {
+              $_.StartsWith($case.Prefix)
+            }).Count) {
+              throw 'Fabric SARIF source locations are not relative to the checkout root.'
+            }
+          }
+          Write-Host 'PASS Fabric Git composite action, SARIF path mapping and policy failure.'
+
+      - name: Verify Fabric Git source contracts
+        run: python scripts/verify-03-6-fabric.py

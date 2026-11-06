@@ -1,0 +1,12 @@
+table Sales
+	column OrderId
+		dataType: int64
+		sourceColumn: OrderId
+	column Amount
+		dataType: decimal
+		sourceColumn: Amount
+	column ProductId
+		dataType: int64
+		sourceColumn: ProductId
+	measure Revenue = SUM(Sales[Amount])
+	measure 'Order Count' = DISTINCTCOUNT(Sales[OrderId])

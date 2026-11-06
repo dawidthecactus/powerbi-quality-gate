@@ -1,5 +1,5 @@
 name: PBIQ Power BI Quality Gate
-description: Audit a checked-out Power BI PBIP/TMDL project and emit SARIF for GitHub Code Scanning.
+description: Audit a checked-out Power BI PBIP or Fabric Git .SemanticModel and emit SARIF.
 author: DawidTheCactus
 branding:
   icon: check-circle
@@ -7,10 +7,10 @@ branding:
 
 inputs:
   project-path:
-    description: Workspace-relative path to one .pbip file or its containing directory.
+    description: Workspace-relative .pbip, .SemanticModel item, or workspace with a single .SemanticModel.
     required: true
   config-path:
-    description: Optional workspace-relative path to .pbiq.yml; default auto-discovery beside the PBIP.
+    description: Optional workspace-relative .pbiq.yml; auto-discovered beside the PBIP or Fabric item.
     required: false
     default: ''
   fail-on-warning:

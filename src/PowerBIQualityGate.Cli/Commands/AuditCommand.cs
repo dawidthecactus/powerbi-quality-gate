@@ -22,7 +22,7 @@ public static class AuditCommand
     {
         var pathArgument = new Argument<string>("path")
         {
-            Description = "Path to a PBIP file or a directory containing one PBIP file."
+            Description = "Path to a PBIP file, a Fabric .SemanticModel item, or a directory containing one."
         };
         var noColorOption = new Option<bool>("--no-color")
         {
@@ -55,12 +55,12 @@ public static class AuditCommand
 
         var sarifRootOption = new Option<string?>("--sarif-source-root")
         {
-            Description = "Repository checkout root for SARIF source paths (must contain the PBIP directory)."
+            Description = "Repository checkout root for SARIF source paths (must contain the source project)."
         };
 
         var configOption = new Option<string?>("--config")
         {
-            Description = "Explicit .pbiq.yml file (default: beside the discovered .pbip)."
+            Description = "Explicit .pbiq.yml file (default: beside the PBIP or Fabric item)."
         };
 
         var command = new Command("audit", "Review a local TMDL semantic model using the SM quality rules.");
@@ -166,7 +166,7 @@ public static class AuditCommand
     }
 
     /// <summary>
-    /// Execute an audit against a discovered PBIP entry point. Injecting the
+    /// Execute an audit against a PBIP or Fabric Git semantic model. Injecting the
     /// consoles keeps CLI behavior testable without replacing global streams.
     /// </summary>
     public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors,
@@ -186,24 +186,27 @@ public static class AuditCommand
             return 2;
         }
 
-        var discovery = new PbipProjectDiscovery().Discover(path);
+        var discovery = new AuditInputDiscovery().Discover(path);
         if (!discovery.IsSuccess)
         {
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 path,
                 "PROJECT DISCOVERY FAILED",
                 discovery.Message,
-                "The audit needs exactly one readable PBIP entry point.",
-                "Supply an existing .pbip file or a folder containing exactly one .pbip file.",
+                "The audit needs one PBIP project or one Fabric semantic model.",
+                "Supply one .pbip file, one .SemanticModel directory, or a folder containing one.",
                 exitCode: 2, mode: mode);
             return 2;
         }
 
+        // A real entry path is passed to all outputs; no synthetic .pbip is created.
+        var entryPath = discovery.EntryPath!;
+
         if (sarifOutput is not null && sarifSourceRoot is not null &&
-            !AuditSarifRenderer.IsValidSourceRoot(sarifSourceRoot, discovery.PbipPath!))
+            !AuditSarifRenderer.IsValidSourceRoot(sarifSourceRoot, entryPath))
         {
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage, path,
-                "INVALID SARIF SOURCE ROOT", "The SARIF source root must be an existing ancestor of the PBIP directory.",
+                "INVALID SARIF SOURCE ROOT", "The SARIF source root must be an existing ancestor of the source project.",
                 "File paths must be relative to the actual source checkout.",
                 "Pass --sarif-source-root with your GitHub workspace root.", exitCode: 2, mode: mode);
             return 2;
@@ -212,7 +215,7 @@ public static class AuditCommand
         PbiqConfiguration configuration;
         try
         {
-            configuration = PbiqConfiguration.Load(discovery.PbipPath!, configPath);
+            configuration = PbiqConfiguration.Load(entryPath, configPath);
         }
         catch (PbiqConfigurationException ex)
         {
@@ -233,15 +236,18 @@ public static class AuditCommand
             return 2;
         }
 
-        var validation = new ProjectStructureValidator().Validate(discovery.PbipPath!);
+        var validator = new ProjectStructureValidator();
+        var validation = discovery.Kind == AuditInputKind.FabricSemanticModel
+            ? validator.ValidateFabricSemanticModel(entryPath)
+            : validator.Validate(entryPath);
         if (!validation.IsValid)
         {
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
-                discovery.PbipPath!,
+                entryPath,
                 "STRUCTURE VALIDATION FAILED",
                 $"The project has {validation.Diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error)} structural error(s).",
-                "The semantic model cannot be audited reliably until the PBIP structure passes validation.",
-                "Run 'pbiq scan <path>' to review PBI diagnostics and repair the project first.",
+                "The semantic model cannot be audited reliably until its source structure passes validation.",
+                "Repair the semantic model or PBIP files. 'pbiq scan <path>' checks PBIP structure only.",
                 exitCode: 1, mode: mode);
             return 1;
         }
@@ -250,7 +256,7 @@ public static class AuditCommand
             string.IsNullOrWhiteSpace(validation.SemanticModelDirectory))
         {
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
-                discovery.PbipPath!,
+                entryPath,
                 "LOCAL TMDL REQUIRED",
                 "This audit supports local TMDL models only (not TMSL or external connections).",
                 "The current rules run on an offline TOM snapshot loaded from TMDL.",
@@ -268,7 +274,7 @@ public static class AuditCommand
         catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
         {
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
-                discovery.PbipPath!,
+                entryPath,
                 "TOM DESERIALIZATION FAILED",
                 $"{ex.GetType().Name}: {ex.Message}",
                 "The official Microsoft parser could not load this TMDL model, so no quality rules were executed.",
@@ -288,7 +294,7 @@ public static class AuditCommand
         catch (ModelQualityRuleExecutionException ex)
         {
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
-                discovery.PbipPath!,
+                entryPath,
                 "QUALITY RULE EXECUTION FAILED",
                 $"Rule {ex.RuleCode} could not be evaluated: {ex.InnerException?.Message ?? ex.Message}",
                 "An incomplete audit must not be reported as passing.",
@@ -304,7 +310,7 @@ public static class AuditCommand
             // Never publish a potentially contradictory PASS verdict or leak
             // object names in internal consistency diagnostics.
             RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
-                discovery.PbipPath!,
+                entryPath,
                 "MEASURE QUALITY INTEGRITY FAILED",
                 $"SM-002 aggregate invariants failed: {string.Join(", ", inconsistencies)}.",
                 "The audit's measure-quality metadata cannot be trusted.",
@@ -320,20 +326,20 @@ public static class AuditCommand
             .Evaluate(result, coverage);
         if (jsonOutput is not null)
         {
-            AuditJsonRenderer.RenderSuccess(jsonOutput, discovery.PbipPath!, snapshot, result,
+            AuditJsonRenderer.RenderSuccess(jsonOutput, entryPath, snapshot, result,
                 decision, coverage, definition, filtered.Suppressed);
             return decision.ExitCode;
         }
 
         if (sarifOutput is not null)
         {
-            AuditSarifRenderer.RenderSuccess(sarifOutput, discovery.PbipPath!, snapshot, result,
+            AuditSarifRenderer.RenderSuccess(sarifOutput, entryPath, snapshot, result,
                 decision, definition, sarifSourceRoot);
             return decision.ExitCode;
         }
 
         var console = decision.ExitCode == 0 ? output : errors;
-        new CompactAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result,
+        new CompactAuditRenderer(console).Render(entryPath, snapshot, result,
             decision, mode, coverage, filtered.Suppressed, filtered.SuppressedSm002);
         return decision.ExitCode;
     }

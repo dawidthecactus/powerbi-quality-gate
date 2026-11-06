@@ -19,7 +19,8 @@ not support SARIF or the YAML configuration engine.
   interpolated directly into a shell command. Paths must be relative to the
   caller's GitHub workspace and cannot lexically escape it.
 - An omitted `config-path` preserves normal `.pbiq.yml` auto-discovery
-  beside the discovered PBIP.
+  beside the discovered PBIP or Fabric `.SemanticModel` item. Native Fabric
+  Git audit support is introduced in milestone 03.6.
 - `exit-code` is 0 (accepted), 1 (gate failed) or 2 (not evaluated / setup
   problem). `sarif-path` is an absolute file path when a valid SARIF document
   was produced, even for exit code 1 or 2; otherwise it is empty.
