@@ -1,9 +1,7 @@
 # PBIQ CLI reference
 
 PBIQ is a read-only, offline CLI with three commands: `scan`, `inspect` and
-`audit`. The v0.3 development source supports PBIP and Fabric Git inputs for
-**`audit` only**. Public `v0.2.0-rc.1` executables do not contain the v0.3
-options. Use `pbiq <command> --help` for the installed revision's own syntax.
+`audit`. The published [v0.3.0-alpha.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1) supports PBIP and Fabric Git inputs for **`audit` only**. The older `v0.2.0-rc.1` executables do not contain the v0.3 options. Use `pbiq <command> --help` for the installed revision's own syntax.
 
 ## Inputs and command coverage
 
