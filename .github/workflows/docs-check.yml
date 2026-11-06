@@ -1,0 +1,24 @@
+name: Docs check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: README links and screenshots
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Validate public README and local screenshot assets
+        run: python3 scripts/verify-release-docs.py
+
+      - name: Validate VHS capture tapes
+        run: python3 scripts/check-vhs-tapes.py assets/vhs

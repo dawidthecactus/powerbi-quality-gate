@@ -42,9 +42,9 @@ Recommended assets, added only after verification:
 | `assets/demos/pbiq-quick-tour.gif` | Short sequence of `scan`, `inspect`, `audit` | Optional README hero animation |
 | `assets/vhs/pbiq-quick-tour.tape` | Reproducible VHS recording script | Versioned source of GIF |
 
-The README contains **a comment marking the media slot**, but deliberately
-has no broken image links. After the first authentic PNG is ready, replace
-that comment with an accessible Markdown image, for example:
+Initially the README contained **a comment marking the media slot**, without
+broken image links. In 02.5.3.5 that slot is replaced with four linked
+PNG captures already committed to `assets/screenshots/`. For example:
 
 ```markdown
 ![PBIQ scan displaying a color-coded structural validation report for a public sample project](assets/screenshots/scan-color.png)
@@ -104,3 +104,20 @@ dotnet format whitespace --verify-no-changes
 
 Commit using `docs(readme): redesign product landing and plan terminal media`.
 No release tag should be created during this submilestone.
+
+## Status after 02.5.3.5
+
+The four screenshots are now committed and visible in the README (a main scan
+image plus a collapsible three-image gallery). The images were taken from the
+public synthetic examples and cropped or presentation-adjusted for legibility.
+The CLI banner now obtains the SemVer base from the informational assembly
+version, so future recordings should show the prerelease suffix automatically.
+
+`python3 scripts/verify-release-docs.py` checks screenshot links, file headers,
+local document links, and current CLI version text. A dedicated Docs check
+workflow runs this check on pushes and pull requests. Future VHS re-recordings
+should be visually reviewed before replacing the committed PNGs; they need not
+be added merely because the workflow was invoked.
+
+No GIF is included in this milestone. If an animated demo is later introduced,
+use real recorded terminal output rather than a simulated animation.

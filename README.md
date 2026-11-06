@@ -48,12 +48,26 @@ PBIQ | AUDIT: PASS WITH COVERAGE GAPS | 0 errors, 0 warnings, 3 information | ex
 correct.” Some measure types remain `Unknown` in offline TOM, so numeric-format
 applicability cannot always be confirmed. See [how to interpret the output](#understand-the-results).
 
-<!-- MEDIA SLOT (02.5.3.3 / 02.5.3.4):
-     Insert a real, sanitized, COLOR terminal screenshot or GIF here when it
-     exists in assets/. Do not link to a missing file. The source of truth is
-     docs/readme-media-plan-02.5.3.1.md.
-     Target: assets/demos/pbiq-quick-tour.gif (or a static scan hero PNG).
--->
+![PBIQ scan: color terminal report for a synthetic Power BI project](assets/screenshots/scan-color.png)
+
+<details>
+<summary><strong>More terminal screenshots: measure inspection, audit PASS and audit FAIL</strong></summary>
+
+**Measure metadata inspection** (plain text by design)
+
+![PBIQ inspect: aggregate measure formats and TOM types](assets/screenshots/inspect-measures.png)
+
+**Audit with explicitly reported coverage gaps**
+
+![PBIQ audit: PASS WITH COVERAGE GAPS on a synthetic PBIP](assets/screenshots/audit-summary-color.png)
+
+**Strict warning policy**
+
+![PBIQ audit: FAIL (WARNING POLICY) on the synthetic warning fixture](assets/screenshots/audit-warning-color.png)
+
+</details>
+
+*The screenshots use the included synthetic examples and are cropped for readability. CLI output and policy results are not simulated.*
 
 ## Quick start
 
@@ -226,7 +240,8 @@ and Ubuntu**. See the **[ready-to-adapt GitHub Actions example](docs/ci-integrat
 | [Coverage-aware quality gate](docs/coverage-aware-gate-02.4.3.md) | Configure a minimum SM-002 classification rate |
 | [Real-world validation](docs/measure-hardening-02.4.5.5.md) | Benchmark local models without publishing their metadata |
 | [Release and checksum guide](docs/release-process.md) | Test/download self-contained builds |
-| [README media plan](docs/readme-media-plan-02.5.3.1.md) | Capture authentic color screenshots and terminal demos |
+| [Terminal screenshots](docs/terminal-screenshots-02.5.3.3.md) | Reproduce and review real CLI captures |
+| [README media plan](docs/readme-media-plan-02.5.3.1.md) | Read the design and capture checklist |
 
 See also the [synthetic fixtures](examples/README.md),
 [contribution guide](CONTRIBUTING.md) and [MIT license](LICENSE).

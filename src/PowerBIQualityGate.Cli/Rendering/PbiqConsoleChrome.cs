@@ -1,10 +1,12 @@
+using System.Reflection;
+
 using Spectre.Console;
 
 namespace PowerBIQualityGate.Cli.Rendering;
 
 /// <summary>
-/// Shared visual identity for the CLI. Every subcommand uses this header rather
-/// than maintaining its own copy of the logo, version, and section separators.
+/// Shared visual identity for the CLI. Every subcommand uses this header
+/// rather than maintaining its own copy of the logo, version, and section separators.
 /// </summary>
 public static class PbiqConsoleChrome
 {
@@ -28,7 +30,14 @@ public static class PbiqConsoleChrome
         console.MarkupLine($"[bold {Mint}]  ╚═╝     ╚═════╝ ╚═╝ ╚══▀▀═╝[/]");
         console.WriteLine();
 
-        var version = typeof(PbiqConsoleChrome).Assembly.GetName().Version?.ToString(3) ?? "dev";
+        var assembly = typeof(PbiqConsoleChrome).Assembly;
+        // AssemblyVersion deliberately excludes SemVer prerelease identifiers.
+        // InformationalVersion is the same version family used by --version;
+        // hide optional +commit metadata in the short, human-facing banner.
+        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        var version = string.IsNullOrWhiteSpace(informational)
+            ? assembly.GetName().Version?.ToString(3) ?? "dev"
+            : informational.Split('+', 2)[0];
         console.MarkupLine($"  [bold {Mint}]PBIQ[/]  /  [bold {Ice}]POWER BI QUALITY GATE[/]  [{Muted}]v{Markup.Escape(version)}[/]");
         console.MarkupLine($"  [{Muted}]{Markup.Escape(mode)}  /  LOCAL  /  READ-ONLY[/]");
         console.WriteLine();

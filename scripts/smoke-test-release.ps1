@@ -46,8 +46,8 @@ New-Item -Path $temp -ItemType Directory -Force | Out-Null
 
 try {
     $cases = @(
-        @{ Name = 'version'; Arguments = @('--version'); Expected = 0; Marker = $ExpectedVersion.Split('-')[0]; Stream = 'stdout' }
-        @{ Name = 'scan'; Arguments = @('scan', $baseline, '--no-color'); Expected = 0; Marker = ''; Stream = 'stdout' }
+        @{ Name = 'version'; Arguments = @('--version'); Expected = 0; Marker = $ExpectedVersion; Stream = 'stdout' }
+        @{ Name = 'scan'; Arguments = @('scan', $baseline, '--no-color'); Expected = 0; Marker = "POWER BI QUALITY GATE  v$ExpectedVersion"; Stream = 'stdout' }
         @{ Name = 'measure inspection'; Arguments = @('inspect', $baseline, '--measures', '--no-color'); Expected = 0; Marker = 'Measures inspected: 2/2'; Stream = 'stdout' }
         @{ Name = 'audit baseline'; Arguments = @('audit', $baseline, '--quiet'); Expected = 0; Marker = 'PASS WITH COVERAGE GAPS'; Stream = 'stdout' }
         @{ Name = 'audit warning policy'; Arguments = @('audit', $warning, '--fail-on-warning', '--quiet'); Expected = 1; Marker = 'FAIL (WARNING POLICY)'; Stream = 'stderr' }
