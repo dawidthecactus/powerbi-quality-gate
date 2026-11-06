@@ -25,7 +25,7 @@ try {
             throw "Unexpected exit code for $($case.Name): $($process.ExitCode)"
         }
         $report = Get-Content -LiteralPath $stdout -Raw -Encoding utf8 | ConvertFrom-Json -Depth 50
-        if ((Get-Content -LiteralPath $stderr -Raw -Encoding utf8).Length -gt 0) {
+        if ((Get-Item -LiteralPath $stderr).Length -gt 0) {
             throw "Unexpected stderr for $($case.Name)"
         }
         if ($case.Kind -eq 'json') {
