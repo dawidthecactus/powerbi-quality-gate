@@ -65,7 +65,39 @@ def check() -> None:
         width, height = struct.unpack(">II", header[16:24])
         if width < 400 or height < 150:
             raise ValueError(f"Suspicious screenshot dimensions ({width}x{height}): {path}")
-    print(f"PASS: README links, four PNGs and CLI version {version}")
+    # The published alpha must have a runnable quick start and reviewable notes.
+    quick_start = ROOT / "docs/quick-start.md"
+    release_notes = ROOT / f"docs/releases/v{version}.md"
+    if not quick_start.is_file() or not release_notes.is_file():
+        raise ValueError("Missing current-version Quick Start or release notes")
+    quick = quick_start.read_text(encoding="utf-8")
+    notes = release_notes.read_text(encoding="utf-8")
+    for required in (version, "pbiq-win-x64.zip", "pbiq-linux-x64.tar.gz",
+                     "SHA256SUMS.txt", "fabric-git/Revenue.SemanticModel",
+                     "git clone", "Get-FileHash", "sha256sum -c",
+                     "--format json", "--format sarif", "SM-001", "SM-004"):
+        if required not in quick:
+            raise ValueError(f"Quick Start missing current feature/example: {required}")
+    for required in (version, "406/406", "SARIF", "Fabric Git", "SM-004",
+                     "pbiq-win-x64.zip", "pbiq-linux-x64.tar.gz"):
+        if required not in notes:
+            raise ValueError(f"Release notes missing: {required}")
+    for doc_name, contents in (("README", readme), ("Getting Started",
+                          (ROOT / "docs/getting-started.md").read_text(encoding="utf-8"))):
+        if "docs/quick-start.md" not in contents and "quick-start.md" not in contents:
+            raise ValueError(f"{doc_name} does not link to Quick Start")
+    for link in re.findall(r"!?\[[^\]]*\]\(([^)]+)\)", quick):
+        uri = urlsplit(link)
+        if uri.scheme or uri.netloc or not uri.path:
+            continue
+        relative = Path(unquote(uri.path))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"Unsafe Quick Start relative link: {link}")
+        if not (quick_start.parent / relative).is_file():
+            raise ValueError(f"Broken Quick Start local link: {link}")
+    if "![Public RC]" in readme or "when one becomes available" in readme:
+        raise ValueError("README still presents the published alpha as unreleased")
+    print(f"PASS: README links, four PNGs, Quick Start, release notes and CLI {version}")
 
 
 def main() -> int:
