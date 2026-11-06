@@ -1,10 +1,6 @@
 # PBIQ in CI: PBIP and Fabric Git
 
-PBIQ audits **local checked-out** TMDL metadata. The v0.3 source tree includes
-JSON (`schemaVersion: 1.0.0`), SARIF (`2.1.0`), `.pbiq.yml` and a composite
-GitHub Action. These features are **not included** in the public
-`v0.2.0-rc.1` binary packages. Pin a reviewed v0.3+ source revision or use
-an appropriately verified future v0.3 prerelease.
+PBIQ audits **local checked-out** TMDL metadata. The published [v0.3.0-alpha.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1) includes JSON (`schemaVersion: 1.0.0`), SARIF (`2.1.0`), `.pbiq.yml` and a composite GitHub Action. These features are **not included** in older `v0.2.0-rc.1` binaries. Pin the reviewed release commit `d9df0f82548334a9520da8731a22e97c7e3ee946` when using the alpha action in an external repository.
 
 ## Exit codes are the policy contract
 
@@ -105,7 +101,4 @@ not upload reports from private customer projects to public repositories.
 PBIQ does **not** refresh datasets, validate DAX runtime behavior or connect
 to Power BI/Fabric services. Metadata/structure checks are conservative and
 not a semantic correctness certificate. GitHub Code Scanning annotations
-require repository entitlement and correctly mapped source files. The 03.5
-composite action was tested inside the PBIQ repository on Windows and Linux;
-**a separate consumer repository integration remains a release-readiness
-check**, not a verified claim.
+require repository entitlement and correctly mapped source files. The composite action passed Windows and Linux CI, an independent consumer-repository acceptance test, and real GitHub Code Scanning SARIF upload using synthetic Fabric Git models. This does not guarantee every downstream repository supports Code Scanning.
