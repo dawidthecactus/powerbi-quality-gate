@@ -138,5 +138,9 @@ jobs:
         shell: pwsh
         run: ./scripts/test-audit-json.ps1
 
+      - name: SARIF audit contract smoke (Windows and Linux)
+        shell: pwsh
+        run: ./scripts/test-audit-sarif.ps1
+
       - name: Verify formatting
         run: dotnet format whitespace --verify-no-changes --no-restore

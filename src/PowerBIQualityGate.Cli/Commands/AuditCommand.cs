@@ -50,7 +50,12 @@ public static class AuditCommand
 
         var formatOption = new Option<string?>("--format")
         {
-            Description = "Output format: text (default) or json (schema v1)."
+            Description = "Output format: text (default), json (schema v1), or sarif (2.1.0)."
+        };
+
+        var sarifRootOption = new Option<string?>("--sarif-source-root")
+        {
+            Description = "Repository checkout root for SARIF source paths (must contain the PBIP directory)."
         };
 
         var configOption = new Option<string?>("--config")
@@ -67,6 +72,7 @@ public static class AuditCommand
         command.Options.Add(quietOption);
         command.Options.Add(formatOption);
         command.Options.Add(configOption);
+        command.Options.Add(sarifRootOption);
 
         command.SetAction(parseResult =>
         {
@@ -79,15 +85,19 @@ public static class AuditCommand
             var quiet = parseResult.GetValue(quietOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
             if (!string.Equals(format, "text", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+                !string.Equals(format, "json", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(format, "sarif", StringComparison.OrdinalIgnoreCase))
             {
                 new CompactAuditRenderer(errors).RenderFailure(path, "INVALID FORMAT",
-                    "The --format value must be 'text' or 'json'.",
+                    "The --format value must be 'text', 'json', or 'sarif'.",
                     "Only documented output formats have stable contracts.",
-                    "Use --format json or omit the flag for text.", exitCode: 2);
+                    "Use --format sarif, --format json, or omit the flag for text.", exitCode: 2);
                 return 2;
             }
             TextWriter? jsonOutput = string.Equals(format, "json", StringComparison.OrdinalIgnoreCase)
+                ? Console.Out
+                : null;
+            TextWriter? sarifOutput = string.Equals(format, "sarif", StringComparison.OrdinalIgnoreCase)
                 ? Console.Out
                 : null;
             if (jsonOutput is not null && (details || quiet))
@@ -95,6 +105,19 @@ public static class AuditCommand
                 AuditJsonRenderer.RenderFailure(jsonOutput, path, "INVALID OUTPUT MODE",
                     "--format json cannot be combined with --details or --quiet.", 2,
                     parseResult.GetValue(failOnWarningOption));
+                return 2;
+            }
+            if (sarifOutput is not null && (details || quiet))
+            {
+                AuditSarifRenderer.RenderFailure(sarifOutput, "INVALID OUTPUT MODE", 2);
+                return 2;
+            }
+            if (sarifOutput is null && parseResult.GetValue(sarifRootOption) is not null)
+            {
+                new CompactAuditRenderer(errors).RenderFailure(path, "INVALID OUTPUT MODE",
+                    "--sarif-source-root requires --format sarif.",
+                    "Source root is only meaningful for SARIF locations.",
+                    "Use --format sarif or omit --sarif-source-root.", exitCode: 2);
                 return 2;
             }
             if (details && quiet)
@@ -119,6 +142,10 @@ public static class AuditCommand
                             "The --min-measure-coverage value must be an integer between 0 and 100.", 2,
                             parseResult.GetValue(failOnWarningOption));
                     }
+                    else if (sarifOutput is not null)
+                    {
+                        AuditSarifRenderer.RenderFailure(sarifOutput, "INVALID COVERAGE THRESHOLD", 2);
+                    }
                     else
                     {
                         new CompactAuditRenderer(errors).RenderFailure(path, "INVALID COVERAGE THRESHOLD",
@@ -131,7 +158,8 @@ public static class AuditCommand
                 threshold = parsed;
             }
             return Execute(path, output, errors, parseResult.GetValue(failOnWarningOption),
-                threshold, mode, jsonOutput, parseResult.GetValue(configOption));
+                threshold, mode, jsonOutput, parseResult.GetValue(configOption),
+                sarifOutput, parseResult.GetValue(sarifRootOption));
         });
 
         return command;
@@ -144,13 +172,14 @@ public static class AuditCommand
     public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors,
         bool failOnWarning = false, int? minimumMeasureCoverage = null,
         AuditOutputMode mode = AuditOutputMode.Summary, TextWriter? jsonOutput = null,
-        string? configPath = null)
+        string? configPath = null, TextWriter? sarifOutput = null,
+        string? sarifSourceRoot = null)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(errors);
         if (minimumMeasureCoverage is < 0 or > 100)
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage, path, "INVALID COVERAGE THRESHOLD",
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage, path, "INVALID COVERAGE THRESHOLD",
                 "The --min-measure-coverage value must be an integer between 0 and 100.",
                 "A coverage threshold must be valid before the audit can be evaluated.",
                 "For example, use --min-measure-coverage 95.", exitCode: 2, mode: mode);
@@ -160,13 +189,23 @@ public static class AuditCommand
         var discovery = new PbipProjectDiscovery().Discover(path);
         if (!discovery.IsSuccess)
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 path,
                 "PROJECT DISCOVERY FAILED",
                 discovery.Message,
                 "The audit needs exactly one readable PBIP entry point.",
                 "Supply an existing .pbip file or a folder containing exactly one .pbip file.",
                 exitCode: 2, mode: mode);
+            return 2;
+        }
+
+        if (sarifOutput is not null && sarifSourceRoot is not null &&
+            !AuditSarifRenderer.IsValidSourceRoot(sarifSourceRoot, discovery.PbipPath!))
+        {
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage, path,
+                "INVALID SARIF SOURCE ROOT", "The SARIF source root must be an existing ancestor of the PBIP directory.",
+                "File paths must be relative to the actual source checkout.",
+                "Pass --sarif-source-root with your GitHub workspace root.", exitCode: 2, mode: mode);
             return 2;
         }
 
@@ -177,7 +216,7 @@ public static class AuditCommand
         }
         catch (PbiqConfigurationException ex)
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage, path,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage, path,
                 "INVALID CONFIGURATION", ex.Message,
                 "An invalid quality policy cannot produce a trusted audit.",
                 "Fix the .pbiq.yml file or remove --config.", exitCode: 2, mode: mode);
@@ -187,7 +226,7 @@ public static class AuditCommand
         var effectiveMinimumCoverage = minimumMeasureCoverage ?? configuration.MinimumMeasureCoverage;
         if (effectiveMinimumCoverage is not null && configuration.DisabledRules.Contains("SM-002"))
         {
-            RenderFailure(errors, jsonOutput, effectiveFailOnWarning, effectiveMinimumCoverage, path,
+            RenderFailure(errors, jsonOutput, sarifOutput, effectiveFailOnWarning, effectiveMinimumCoverage, path,
                 "INVALID CONFIGURATION", "Measure coverage requires SM-002 to be enabled.",
                 "Coverage cannot be measured for a disabled rule.",
                 "Enable SM-002 or remove the coverage threshold.", exitCode: 2, mode: mode);
@@ -197,7 +236,7 @@ public static class AuditCommand
         var validation = new ProjectStructureValidator().Validate(discovery.PbipPath!);
         if (!validation.IsValid)
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 discovery.PbipPath!,
                 "STRUCTURE VALIDATION FAILED",
                 $"The project has {validation.Diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error)} structural error(s).",
@@ -210,7 +249,7 @@ public static class AuditCommand
         if (validation.SemanticModelFormat != SemanticModelDefinitionFormat.Tmdl ||
             string.IsNullOrWhiteSpace(validation.SemanticModelDirectory))
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 discovery.PbipPath!,
                 "LOCAL TMDL REQUIRED",
                 "This audit supports local TMDL models only (not TMSL or external connections).",
@@ -228,7 +267,7 @@ public static class AuditCommand
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 discovery.PbipPath!,
                 "TOM DESERIALIZATION FAILED",
                 $"{ex.GetType().Name}: {ex.Message}",
@@ -248,7 +287,7 @@ public static class AuditCommand
         }
         catch (ModelQualityRuleExecutionException ex)
         {
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 discovery.PbipPath!,
                 "QUALITY RULE EXECUTION FAILED",
                 $"Rule {ex.RuleCode} could not be evaluated: {ex.InnerException?.Message ?? ex.Message}",
@@ -264,7 +303,7 @@ public static class AuditCommand
         {
             // Never publish a potentially contradictory PASS verdict or leak
             // object names in internal consistency diagnostics.
-            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage,
+            RenderFailure(errors, jsonOutput, sarifOutput, failOnWarning, minimumMeasureCoverage,
                 discovery.PbipPath!,
                 "MEASURE QUALITY INTEGRITY FAILED",
                 $"SM-002 aggregate invariants failed: {string.Join(", ", inconsistencies)}.",
@@ -286,6 +325,13 @@ public static class AuditCommand
             return decision.ExitCode;
         }
 
+        if (sarifOutput is not null)
+        {
+            AuditSarifRenderer.RenderSuccess(sarifOutput, discovery.PbipPath!, snapshot, result,
+                decision, definition, sarifSourceRoot);
+            return decision.ExitCode;
+        }
+
         var console = decision.ExitCode == 0 ? output : errors;
         new CompactAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result,
             decision, mode, coverage, filtered.Suppressed, filtered.SuppressedSm002);
@@ -293,7 +339,7 @@ public static class AuditCommand
     }
 
     private static void RenderFailure(
-        IAnsiConsole errors, TextWriter? jsonOutput, bool failOnWarning,
+        IAnsiConsole errors, TextWriter? jsonOutput, TextWriter? sarifOutput, bool failOnWarning,
         int? minimumMeasureCoverage, string path, string title, string message,
         string why, string fix, int exitCode, AuditOutputMode mode = AuditOutputMode.Summary)
     {
@@ -304,6 +350,11 @@ public static class AuditCommand
             return;
         }
 
+        if (sarifOutput is not null)
+        {
+            AuditSarifRenderer.RenderFailure(sarifOutput, title, exitCode);
+            return;
+        }
         new CompactAuditRenderer(errors).RenderFailure(path, title, message, why, fix,
             exitCode, mode);
     }
