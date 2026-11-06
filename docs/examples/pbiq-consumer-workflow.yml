@@ -1,0 +1,34 @@
+# Copy into the CONSUMER repository at .github/workflows/pbiq.yml.
+# Pin PBIQ to the full SHA of a reviewed, released v0.3+ revision.
+name: Power BI quality gate
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  pbiq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Audit Power BI project
+        id: pbiq
+        continue-on-error: true
+        uses: dawidthecactus/powerbi-quality-gate@REPLACE_WITH_REVIEWED_FULL_COMMIT_SHA
+        with:
+          project-path: path/to/YourReport.pbip
+          # config-path: path/to/.pbiq.yml
+          fail-on-warning: 'true'
+          min-measure-coverage: '0'
+          sarif-output: reports/pbiq-results.sarif
+      - name: Upload SARIF to GitHub Code Scanning
+        if: ${{ always() && steps.pbiq.outputs.sarif-path != '' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.pbiq.outputs.sarif-path }}
+          category: pbiq-powerbi
+      - name: Enforce PBIQ result after upload
+        if: ${{ always() && steps.pbiq.outputs.exit-code != '0' }}
+        shell: bash
+        run: exit 1

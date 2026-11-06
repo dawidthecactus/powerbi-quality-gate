@@ -144,3 +144,51 @@ jobs:
 
       - name: Verify formatting
         run: dotnet format whitespace --verify-no-changes --no-restore
+
+      # Run the published consumer entrypoint against our real public fixtures
+      # on BOTH Ubuntu and Windows. These are action-in-action e2e tests.
+      - name: Reusable PBIQ action smoke (pass)
+        id: pbiq_pass
+        uses: ./
+        with:
+          project-path: examples/valid-pbir-tmdl
+          sarif-output: .pbiq-ci-pass.sarif
+
+      - name: Reusable PBIQ action smoke (expected policy failure)
+        id: pbiq_fail
+        continue-on-error: true
+        uses: ./
+        with:
+          project-path: examples/warning-pbir-tmdl
+          fail-on-warning: 'true'
+          sarif-output: .pbiq-ci-fail.sarif
+
+      - name: Verify reusable action outputs and policy enforcement
+        shell: pwsh
+        env:
+          PASS_EXIT: ${{ steps.pbiq_pass.outputs.exit-code }}
+          PASS_REPORT: ${{ steps.pbiq_pass.outputs.sarif-path }}
+          FAIL_EXIT: ${{ steps.pbiq_fail.outputs.exit-code }}
+          FAIL_REPORT: ${{ steps.pbiq_fail.outputs.sarif-path }}
+          FAIL_OUTCOME: ${{ steps.pbiq_fail.outcome }}
+        run: |
+          if ($env:PASS_EXIT -ne '0' -or $env:FAIL_EXIT -ne '1' -or
+              $env:FAIL_OUTCOME -ne 'failure') {
+            throw "Reusable action semantics unexpected: pass=$env:PASS_EXIT fail=$env:FAIL_EXIT outcome=$env:FAIL_OUTCOME"
+          }
+          foreach ($case in @(
+            @{ Path = $env:PASS_REPORT; Code = 0 }
+            @{ Path = $env:FAIL_REPORT; Code = 1 }
+          )) {
+            if (-not $case.Path -or -not (Test-Path -LiteralPath $case.Path -PathType Leaf)) {
+              throw 'Reusable action did not leave the expected SARIF file.'
+            }
+            $sarif = Get-Content -LiteralPath $case.Path -Raw -Encoding utf8 | ConvertFrom-Json -Depth 50
+            if ($sarif.version -ne '2.1.0' -or $sarif.runs[0].properties.pbiqExitCode -ne $case.Code) {
+              throw 'Reusable action SARIF outcome is inconsistent.'
+            }
+          }
+          Write-Host 'PASS reusable action: exit 0 report and exit 1 report were both preserved.'
+
+      - name: Verify reusable action source contracts
+        run: python scripts/verify-03-5-action.py
