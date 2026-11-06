@@ -1,0 +1,4 @@
+case_id,kind,path
+P01,pbip,C:\PrivateModels\A\ModelA.pbip
+P02,pbip,C:\PrivateModels\B\ModelB.pbip
+P03,fabric,C:\PrivateModels\C.SemanticModel

@@ -279,3 +279,6 @@ jobs:
         run: |
           python scripts/verify-release-docs.py
           python scripts/verify-03-7-readiness.py
+
+      - name: Real-model pilot harness regression (synthetic data only)
+        run: python -m unittest discover -s tests/pilot -p 'test_*.py' -v
