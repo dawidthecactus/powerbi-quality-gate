@@ -42,7 +42,8 @@
         "rulesEvaluated": {"$ref": "#/$defs/count"},
         "errors": {"$ref": "#/$defs/count"},
         "warnings": {"$ref": "#/$defs/count"},
-        "information": {"$ref": "#/$defs/count"}
+        "information": {"$ref": "#/$defs/count"},
+        "suppressed": {"$ref": "#/$defs/count"}
       }
     },
     "policy": {

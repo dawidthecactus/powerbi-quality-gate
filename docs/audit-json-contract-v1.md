@@ -129,3 +129,11 @@ privacy boundaries, determinism and no fabricated source coordinates.
 - **03.4:** SARIF export and GitHub annotations based on validated locations.
 - **03.5:** reusable pinned GitHub Action.
 - **03.6:** native Fabric Git repositories without `.pbip` shortcut.
+
+## Configuration addendum (03.3 alpha)
+
+The `summary.suppressed` nonnegative integer reports how many findings were
+removed by explicit object exclusions. The JSON contract remains 1.0.0 during
+alpha, with a documented additive field and updated JSON Schema. Missing
+configuration preserves the former default behavior. See
+[milestone 03.3](milestone-03.3-configuration-engine.md).

@@ -29,7 +29,7 @@ public static class AuditJsonRenderer
         TomModelSnapshot snapshot,
         ModelQualityAuditResult audit,
         QualityGateDecision decision,
-        ModelAuditCoverage coverage, string? definitionDirectory = null)
+        ModelAuditCoverage coverage, string? definitionDirectory = null, int suppressed = 0)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(pbipPath);
@@ -60,7 +60,7 @@ public static class AuditJsonRenderer
                 snapshot.Tables.Count, snapshot.Measures, snapshot.Relationships.Count),
             new AuditResultV1(Status(decision.Outcome), decision.ExitCode),
             new AuditSummaryV1(audit.RulesEvaluated, audit.ErrorCount,
-                audit.WarningCount, audit.InformationCount),
+                audit.WarningCount, audit.InformationCount, suppressed),
             new AuditPolicyV1(decision.FailOnWarning, decision.MinimumMeasureCoverage),
             measures is null ? null : new AuditCoverageV1(new AuditMeasureCoverageV1(
                 inspection?.Inspected ?? 0,
@@ -175,7 +175,7 @@ public sealed record AuditToolV1(string Name, string Version);
 public sealed record AuditProjectV1(string? Name, string? ModelName,
     int? Tables, int? Measures, int? Relationships);
 public sealed record AuditResultV1(string Status, int ExitCode);
-public sealed record AuditSummaryV1(int RulesEvaluated, int Errors, int Warnings, int Information);
+public sealed record AuditSummaryV1(int RulesEvaluated, int Errors, int Warnings, int Information, int Suppressed = 0);
 public sealed record AuditPolicyV1(bool FailOnWarning, int? MinimumMeasureCoverage);
 public sealed record AuditCoverageV1(AuditMeasureCoverageV1 Measures);
 public sealed record AuditMeasureCoverageV1(

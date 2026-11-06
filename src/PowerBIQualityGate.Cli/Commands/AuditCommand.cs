@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Globalization;
 
+using PowerBIQualityGate.Cli.Configuration;
 using PowerBIQualityGate.Cli.Rendering;
 using PowerBIQualityGate.Core.Discovery;
 using PowerBIQualityGate.Core.Inspection;
@@ -52,6 +53,11 @@ public static class AuditCommand
             Description = "Output format: text (default) or json (schema v1)."
         };
 
+        var configOption = new Option<string?>("--config")
+        {
+            Description = "Explicit .pbiq.yml file (default: beside the discovered .pbip)."
+        };
+
         var command = new Command("audit", "Review a local TMDL semantic model using the SM quality rules.");
         command.Arguments.Add(pathArgument);
         command.Options.Add(noColorOption);
@@ -60,6 +66,7 @@ public static class AuditCommand
         command.Options.Add(detailsOption);
         command.Options.Add(quietOption);
         command.Options.Add(formatOption);
+        command.Options.Add(configOption);
 
         command.SetAction(parseResult =>
         {
@@ -124,7 +131,7 @@ public static class AuditCommand
                 threshold = parsed;
             }
             return Execute(path, output, errors, parseResult.GetValue(failOnWarningOption),
-                threshold, mode, jsonOutput);
+                threshold, mode, jsonOutput, parseResult.GetValue(configOption));
         });
 
         return command;
@@ -136,7 +143,8 @@ public static class AuditCommand
     /// </summary>
     public static int Execute(string path, IAnsiConsole output, IAnsiConsole errors,
         bool failOnWarning = false, int? minimumMeasureCoverage = null,
-        AuditOutputMode mode = AuditOutputMode.Summary, TextWriter? jsonOutput = null)
+        AuditOutputMode mode = AuditOutputMode.Summary, TextWriter? jsonOutput = null,
+        string? configPath = null)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(errors);
@@ -159,6 +167,30 @@ public static class AuditCommand
                 "The audit needs exactly one readable PBIP entry point.",
                 "Supply an existing .pbip file or a folder containing exactly one .pbip file.",
                 exitCode: 2, mode: mode);
+            return 2;
+        }
+
+        PbiqConfiguration configuration;
+        try
+        {
+            configuration = PbiqConfiguration.Load(discovery.PbipPath!, configPath);
+        }
+        catch (PbiqConfigurationException ex)
+        {
+            RenderFailure(errors, jsonOutput, failOnWarning, minimumMeasureCoverage, path,
+                "INVALID CONFIGURATION", ex.Message,
+                "An invalid quality policy cannot produce a trusted audit.",
+                "Fix the .pbiq.yml file or remove --config.", exitCode: 2, mode: mode);
+            return 2;
+        }
+        var effectiveFailOnWarning = failOnWarning || configuration.FailOnWarning == true;
+        var effectiveMinimumCoverage = minimumMeasureCoverage ?? configuration.MinimumMeasureCoverage;
+        if (effectiveMinimumCoverage is not null && configuration.DisabledRules.Contains("SM-002"))
+        {
+            RenderFailure(errors, jsonOutput, effectiveFailOnWarning, effectiveMinimumCoverage, path,
+                "INVALID CONFIGURATION", "Measure coverage requires SM-002 to be enabled.",
+                "Coverage cannot be measured for a disabled rule.",
+                "Enable SM-002 or remove the coverage threshold.", exitCode: 2, mode: mode);
             return 2;
         }
 
@@ -209,7 +241,9 @@ public static class AuditCommand
         ModelQualityAuditResult result;
         try
         {
-            var engine = new ModelQualityAuditEngine(ModelQualityRulePack.CreateDefault());
+            var rules = ModelQualityRulePack.CreateDefault()
+                .Where(rule => !configuration.DisabledRules.Contains(rule.Code));
+            var engine = new ModelQualityAuditEngine(rules);
             result = engine.Run(snapshot);
         }
         catch (ModelQualityRuleExecutionException ex)
@@ -239,17 +273,22 @@ public static class AuditCommand
                 exitCode: 2, mode: mode);
             return 2;
         }
-        var decision = new CoverageAwareGatePolicy(failOnWarning, minimumMeasureCoverage)
+        // Validate SM-002 against raw evaluated findings, then apply exact
+        // object exclusions before the quality gate evaluates visible findings.
+        var filtered = configuration.ApplyExclusions(result);
+        result = filtered.Audit;
+        var decision = new CoverageAwareGatePolicy(effectiveFailOnWarning, effectiveMinimumCoverage)
             .Evaluate(result, coverage);
         if (jsonOutput is not null)
         {
             AuditJsonRenderer.RenderSuccess(jsonOutput, discovery.PbipPath!, snapshot, result,
-                decision, coverage, definition);
+                decision, coverage, definition, filtered.Suppressed);
             return decision.ExitCode;
         }
 
         var console = decision.ExitCode == 0 ? output : errors;
-        new CompactAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result, decision, mode, coverage);
+        new CompactAuditRenderer(console).Render(discovery.PbipPath!, snapshot, result,
+            decision, mode, coverage, filtered.Suppressed, filtered.SuppressedSm002);
         return decision.ExitCode;
     }
 
