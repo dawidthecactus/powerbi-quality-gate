@@ -5,12 +5,7 @@ Power BI projects and semantic-model metadata. It provides PBIP structure
 checks (`scan`), TMDL/TOM inspection (`inspect`) and policy-based metadata
 quality checks (`audit`).
 
-> **Release status:** The already-published **v0.2 release candidate** is
-> [`v0.2.0-rc.1`](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1).
-> The **v0.3.0-alpha.1 source tree** adds Fabric Git input, JSON, SARIF,
-> `.pbiq.yml` and a composite GitHub Action. Those additions are not part of
-> the v0.2.0-rc.1 downloadable binaries. Until a v0.3 prerelease is tagged,
-> check out the reviewed v0.3 source revision before following the new examples.
+> **Release status:** [v0.3.0-alpha.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1) is **published** with self-contained Windows/Linux x64 binaries. It includes Fabric Git auditing, JSON, SARIF, `.pbiq.yml` and a composite GitHub Action. This is an **alpha prerelease**. The earlier [v0.2.0-rc.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.2.0-rc.1) does not contain these features. For the shortest path, use the [5-minute Quick Start](quick-start.md).
 
 ## Requirements and supported inputs
 
@@ -23,8 +18,7 @@ quality checks (`audit`).
 ## Build and run from source
 
 ```powershell
-# Clone the repository and check out the reviewed v0.3 branch/commit when
-# testing features before their public prerelease.
+# The main branch contains the published v0.3.0-alpha.1 sources.
 git clone https://github.com/dawidthecactus/powerbi-quality-gate.git
 Set-Location powerbi-quality-gate
 
@@ -83,10 +77,7 @@ cannot be disabled by YAML; the CLI's coverage option overrides YAML.
 
 ## Standalone installation
 
-The **currently published v0.2.0-rc.1** packages contain the earlier CLI
-features only. Download a specific, reviewed release and its
-`SHA256SUMS.txt` from [GitHub Releases](https://github.com/dawidthecactus/powerbi-quality-gate/releases).
-Do **not** use the older package for the v0.3 options above.
+Download the published [v0.3.0-alpha.1](https://github.com/dawidthecactus/powerbi-quality-gate/releases/tag/v0.3.0-alpha.1) package and `SHA256SUMS.txt`. Its Windows x64 and Linux x64 executables contain the v0.3 features listed above. The [5-minute Quick Start](quick-start.md) includes complete download and SHA256 verification commands.
 
 ### Windows x64
 
@@ -130,6 +121,7 @@ against malicious symlinks/junctions.
 
 ## Further reading
 
+- [5-minute Quick Start for the published alpha](quick-start.md)
 - [All CLI options and formats](commands.md)
 - [JSON schema v1](audit-json-contract-v1.md)
 - [SARIF and GitHub Code Scanning](milestone-03.4-sarif-github-annotations.md)

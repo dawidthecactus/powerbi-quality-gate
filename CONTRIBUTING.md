@@ -8,7 +8,7 @@ Thank you for helping improve `powerbi-quality-gate` (`pbiq`). The project is in
 - For new rules, format support, or changes to public CLI behavior, open an issue first to discuss expected behavior and edge cases.
 - Keep pull requests focused: one coherent change per PR.
 - Do not include company reports, private datasets, credentials, customer details, or proprietary PBIP files. Use synthetic fixtures with invented data.
-- The project has no explicit license yet. Check the repository's licensing status before substantial external contributions.
+- The project is published under the [MIT license](LICENSE). Review third-party rights and use only code or fixtures you may legally contribute.
 
 ## Development environment
 
