@@ -9,7 +9,6 @@ public sealed class DaxVarReturnDiagnosticsTests
 {
     [Theory]
     [InlineData("VAR x = DIVIDE(1, 2) RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.Divide)]
-    [InlineData("VAR x = CALCULATE(SUM(Data[Amount])) RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.Calculate)]
     [InlineData("VAR x = IF(TRUE(), 1, 0) RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.Conditional)]
     [InlineData("VAR x = FORMAT(42, \"0\") RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.OtherFunction)]
     [InlineData("VAR x = [Sensitive] RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.ReferenceOrOperator)]
@@ -41,6 +40,7 @@ public sealed class DaxVarReturnDiagnosticsTests
     [Theory]
     [InlineData("VAR x = 42 RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR x = COUNTROWS('Data') RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
+    [InlineData("VAR x = CALCULATE(SUM(Data[Amount])) RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR first = 1 VAR second = first RETURN second", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR x = \"COUNTROWS(Sales)\" RETURN x", StaticDaxTypeEvidenceKind.LikelyNonNumeric)]
     [InlineData("VAR x = FALSE() RETURN x", StaticDaxTypeEvidenceKind.LikelyNonNumeric)]
