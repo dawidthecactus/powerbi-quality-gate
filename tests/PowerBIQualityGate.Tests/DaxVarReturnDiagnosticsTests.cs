@@ -9,12 +9,12 @@ public sealed class DaxVarReturnDiagnosticsTests
 {
     [Theory]
     [InlineData("VAR x = DIVIDE(1, 2) RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.Divide)]
-    [InlineData("VAR x = IF(TRUE(), 1, 0) RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.Conditional)]
+    [InlineData("VAR x = IF(TRUE(), 1, \"no\") RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.Conditional)]
     [InlineData("VAR x = FORMAT(42, \"0\") RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.OtherFunction)]
     [InlineData("VAR x = [Sensitive] RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.ReferenceOrOperator)]
     [InlineData("VAR x = (42) RETURN x", DaxVarReturnDiagnosticReason.UnsupportedVariableExpression, DaxRootShapeKind.ReferenceOrOperator)]
     [InlineData("VAR x = 1 RETURN DIVIDE(1, 2)", DaxVarReturnDiagnosticReason.UnsupportedReturnExpression, DaxRootShapeKind.Divide)]
-    [InlineData("VAR x = 1 RETURN IF(TRUE(), 1, 0)", DaxVarReturnDiagnosticReason.UnsupportedReturnExpression, DaxRootShapeKind.Conditional)]
+    [InlineData("VAR x = 1 RETURN IF(TRUE(), 1, \"no\")", DaxVarReturnDiagnosticReason.UnsupportedReturnExpression, DaxRootShapeKind.Conditional)]
     [InlineData("VAR x = 1 RETURN x + 1", DaxVarReturnDiagnosticReason.UnsupportedReturnExpression, DaxRootShapeKind.ReferenceOrOperator)]
     [InlineData("VAR x = 1 RETURN [AnotherMeasure]", DaxVarReturnDiagnosticReason.UnsupportedReturnExpression, DaxRootShapeKind.ReferenceOrOperator)]
     [InlineData("VAR x = 1 RETURN y", DaxVarReturnDiagnosticReason.UnknownOrForwardVariable, DaxRootShapeKind.NotApplicable)]
@@ -41,6 +41,7 @@ public sealed class DaxVarReturnDiagnosticsTests
     [InlineData("VAR x = 42 RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR x = COUNTROWS('Data') RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR x = CALCULATE(SUM(Data[Amount])) RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
+    [InlineData("VAR x = IF(TRUE(), 1, 0) RETURN x", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR first = 1 VAR second = first RETURN second", StaticDaxTypeEvidenceKind.LikelyNumeric)]
     [InlineData("VAR x = \"COUNTROWS(Sales)\" RETURN x", StaticDaxTypeEvidenceKind.LikelyNonNumeric)]
     [InlineData("VAR x = FALSE() RETURN x", StaticDaxTypeEvidenceKind.LikelyNonNumeric)]
@@ -78,7 +79,7 @@ public sealed class DaxVarReturnDiagnosticsTests
     {
         var snapshot = Model(
             Measure("SecretDivide", "VAR x = DIVIDE(10, 2) RETURN x"),
-            Measure("SecretReturn", "VAR x = 1 RETURN IF(TRUE(), 1, 0)"),
+            Measure("SecretReturn", "VAR x = 1 RETURN IF(TRUE(), 1, [Unknown])"),
             Measure("SecretUnknown", "VAR x = 1 RETURN missing", "0.00"),
             Measure("SecretStructure", "VAR _x = 1 RETURN _x"),
             Measure("SecretGood", "VAR x = COUNTROWS('Data') RETURN x"),
@@ -121,7 +122,7 @@ public sealed class DaxVarReturnDiagnosticsTests
     {
         var snapshot = Model(
             Measure("ConfidentialDivide", "VAR Secret = DIVIDE([PrivateA], [PrivateB]) RETURN Secret"),
-            Measure("ConfidentialReturn", "VAR Secret = 42 RETURN IF(TRUE(), Secret, 0)"),
+            Measure("ConfidentialReturn", "VAR Secret = 42 RETURN IF(TRUE(), Secret, [Unknown])"),
             Measure("ConfidentialAlias", "VAR HiddenAmount = 1 RETURN NotDeclared"));
         var report = new MeasureInspectionEngine().Inspect(snapshot);
         using var writer = new StringWriter();

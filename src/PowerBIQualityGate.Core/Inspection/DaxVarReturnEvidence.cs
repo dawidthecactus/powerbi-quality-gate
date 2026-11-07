@@ -43,6 +43,7 @@ public static class DaxVarReturnEvidence
     private const int MaxExpressionLength = 16384;
     private const int MaxVariables = 64;
     private const int MaxAliasDepth = 32;
+    private const int MaxResolutionSteps = 512;
 
     private readonly record struct Keyword(string Word, int Start, int End);
     private sealed record Definition(string Name, string Expression);
@@ -111,13 +112,15 @@ public static class DaxVarReturnEvidence
             return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
         }
 
-        return Resolve(returned, variables, variables.Count, depth: 0, isVariableValue: false);
+        var remainingSteps = MaxResolutionSteps;
+        return Resolve(returned, variables, variables.Count, 0, false, ref remainingSteps);
     }
 
     private static DaxVarReturnDiagnostic Resolve(string expression,
-        IReadOnlyList<Definition> variables, int availableCount, int depth, bool isVariableValue)
+        IReadOnlyList<Definition> variables, int availableCount, int depth,
+        bool isVariableValue, ref int remainingSteps)
     {
-        if (depth > MaxAliasDepth)
+        if (depth > MaxAliasDepth || --remainingSteps < 0)
         {
             return Failure(DaxVarReturnDiagnosticReason.AnalysisLimitExceeded);
         }
@@ -130,13 +133,48 @@ public static class DaxVarReturnEvidence
         }
 
         var candidate = expression.Trim();
+        // Conditional result values must ALL have the same known advisory type;
+        // BLANK is neutral but cannot determine a type on its own. This is
+        // deliberately narrower than the full DAX coercion/variant rules.
+        if (DaxConditionalScalarArguments.TryExtract(candidate, out var branches))
+        {
+            StaticDaxTypeEvidenceKind? common = null;
+            var compatible = true;
+            foreach (var branch in branches)
+            {
+                if (DaxConditionalScalarArguments.IsExplicitBlank(branch)) continue;
+                var result = Resolve(branch, variables, availableCount, depth + 1,
+                    isVariableValue, ref remainingSteps);
+                if (result.Reason == DaxVarReturnDiagnosticReason.AnalysisLimitExceeded)
+                    return result;
+                if (result.Evidence is not (StaticDaxTypeEvidenceKind.LikelyNumeric or
+                    StaticDaxTypeEvidenceKind.LikelyNonNumeric))
+                {
+                    compatible = false;
+                    break;
+                }
+                if (common is not null && common.Value != result.Evidence)
+                {
+                    compatible = false;
+                    break;
+                }
+                common = result.Evidence;
+            }
+            if (compatible && common is { } kind)
+                return new DaxVarReturnDiagnostic(kind,
+                    DaxVarReturnDiagnosticReason.NotApplicable,
+                    DaxRootShapeKind.NotApplicable);
+        }
+
         // CALCULATE keeps its first argument's scalar type. This is lexical,
         // advisory evidence only. Unsupported nested values retain the old
         // unresolved reason and blocked-shape classification.
         if (DaxCalculateScalarArgument.TryExtract(candidate, out var scalarArgument))
         {
             var inner = Resolve(scalarArgument, variables, availableCount,
-                depth + 1, isVariableValue);
+                depth + 1, isVariableValue, ref remainingSteps);
+            if (inner.Reason == DaxVarReturnDiagnosticReason.AnalysisLimitExceeded)
+                return inner;
             if (inner.Evidence != StaticDaxTypeEvidenceKind.Unresolved)
             {
                 return inner;
@@ -158,7 +196,7 @@ public static class DaxVarReturnEvidence
             if (string.Equals(variables[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
             {
                 return Resolve(variables[i].Expression, variables, i, depth + 1,
-                    isVariableValue: true);
+                    true, ref remainingSteps);
             }
         }
         return Failure(DaxVarReturnDiagnosticReason.UnknownOrForwardVariable);
