@@ -37,6 +37,11 @@ public sealed class MeasureInspectionRenderer
                 _writer.WriteLine($"  {DaxRootShapeProfiler.Label(group.Shape)}: {group.Count} / {group.MissingFormat}");
             }
         }
+        if (s.VarReturnAnalyzed > 0)
+        {
+            _writer.WriteLine($"VAR / RETURN evidence (unresolved TOM/DAX): likely numeric {s.VarReturnLikelyNumeric}  |  likely nonnumeric {s.VarReturnLikelyNonNumeric}  |  unresolved {s.VarReturnUnresolved}");
+            _writer.WriteLine($"VAR / RETURN review: missing format among likely numeric {s.VarReturnLikelyNumericMissingFormat} (advisory only; not SM-002 warnings)");
+        }
         _writer.WriteLine("Scope: metadata presence plus advisory lexical DAX type evidence; no DAX execution or SM-002 verdict changes.");
     }
 }

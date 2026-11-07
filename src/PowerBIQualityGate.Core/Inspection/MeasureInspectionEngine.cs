@@ -50,6 +50,10 @@ public sealed record InspectedMeasure(
 
     /// <summary>A coarse entry shape only for unresolved static DAX evidence.</summary>
     public DaxRootShapeKind UnresolvedRootShape { get; init; } = DaxRootShapeKind.NotApplicable;
+
+    /// <summary>Independent advisory hint for unresolved VAR entry shapes only.</summary>
+    public StaticDaxTypeEvidenceKind VarReturnEvidence { get; init; } =
+        StaticDaxTypeEvidenceKind.NotAssessed;
 }
 
 /// <summary>
@@ -82,6 +86,15 @@ public sealed record MeasureInspectionSummary(
     public int StaticDaxUnresolved { get; init; }
     public int StaticDaxLikelyNumericMissingFormat { get; init; }
     public IReadOnlyList<DaxRootShapeCount> UnresolvedRootShapes { get; init; } = [];
+
+    // Additive VAR / RETURN advisory breakdown. Does not change the existing
+    // StaticDax* counts, UnresolvedRootShapes or gate-coverage denominators.
+    public int VarReturnLikelyNumeric { get; init; }
+    public int VarReturnLikelyNonNumeric { get; init; }
+    public int VarReturnUnresolved { get; init; }
+    public int VarReturnLikelyNumericMissingFormat { get; init; }
+    public int VarReturnAnalyzed =>
+        VarReturnLikelyNumeric + VarReturnLikelyNonNumeric + VarReturnUnresolved;
 }
 
 public sealed record MeasureInspectionReport(
@@ -135,6 +148,15 @@ public sealed class MeasureInspectionEngine
             StaticDaxLikelyNumericMissingFormat = visible.Count(m =>
                 m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric &&
                 m.FormatKind == MeasureFormatKind.Missing),
+            VarReturnLikelyNumeric = visible.Count(m =>
+                m.VarReturnEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric),
+            VarReturnLikelyNonNumeric = visible.Count(m =>
+                m.VarReturnEvidence == StaticDaxTypeEvidenceKind.LikelyNonNumeric),
+            VarReturnUnresolved = visible.Count(m =>
+                m.VarReturnEvidence == StaticDaxTypeEvidenceKind.Unresolved),
+            VarReturnLikelyNumericMissingFormat = visible.Count(m =>
+                m.VarReturnEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric &&
+                m.FormatKind == MeasureFormatKind.Missing),
             UnresolvedRootShapes = Enum.GetValues<DaxRootShapeKind>()
                 .Where(shape => shape != DaxRootShapeKind.NotApplicable)
                 .Select(shape => new DaxRootShapeCount(shape,
@@ -171,6 +193,9 @@ public sealed class MeasureInspectionEngine
             MeasureDataTypeKind.Unsupported
             ? StaticDaxTypeEvidence.Analyze(measure.Expression)
             : StaticDaxTypeEvidenceKind.NotAssessed;
+        var rootShape = evidence == StaticDaxTypeEvidenceKind.Unresolved
+            ? DaxRootShapeProfiler.Analyze(measure.Expression)
+            : DaxRootShapeKind.NotApplicable;
         return new InspectedMeasure(
             table.Name,
             measure.Name,
@@ -183,9 +208,11 @@ public sealed class MeasureInspectionEngine
             staticPresent && dynamicPresent)
         {
             StaticDaxTypeEvidence = evidence,
-            UnresolvedRootShape = evidence == StaticDaxTypeEvidenceKind.Unresolved
-                ? DaxRootShapeProfiler.Analyze(measure.Expression)
-                : DaxRootShapeKind.NotApplicable
+            UnresolvedRootShape = rootShape,
+            VarReturnEvidence = !table.IsHidden && !measure.IsHidden &&
+                rootShape == DaxRootShapeKind.Variable
+                ? DaxVarReturnEvidence.Analyze(measure.Expression)
+                : StaticDaxTypeEvidenceKind.NotAssessed
         };
     }
 
