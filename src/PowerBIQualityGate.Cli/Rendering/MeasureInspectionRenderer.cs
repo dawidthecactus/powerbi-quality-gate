@@ -42,6 +42,22 @@ public sealed class MeasureInspectionRenderer
             _writer.WriteLine($"VAR / RETURN evidence (unresolved TOM/DAX): likely numeric {s.VarReturnLikelyNumeric}  |  likely nonnumeric {s.VarReturnLikelyNonNumeric}  |  unresolved {s.VarReturnUnresolved}");
             _writer.WriteLine($"VAR / RETURN review: missing format among likely numeric {s.VarReturnLikelyNumericMissingFormat} (advisory only; not SM-002 warnings)");
         }
+        if (s.VarReturnUnresolvedReasons.Count > 0)
+        {
+            _writer.WriteLine("VAR / RETURN unresolved reasons (count / missing format; approximate, advisory only):");
+            foreach (var reason in s.VarReturnUnresolvedReasons)
+            {
+                _writer.WriteLine($"  {DaxVarReturnEvidence.ReasonLabel(reason.Reason)}: {reason.Count} / {reason.MissingFormat}");
+            }
+        }
+        if (s.VarReturnBlockedShapes.Count > 0)
+        {
+            _writer.WriteLine("VAR / RETURN blocked expression shapes (subset; count / missing format):");
+            foreach (var shape in s.VarReturnBlockedShapes)
+            {
+                _writer.WriteLine($"  {DaxRootShapeProfiler.Label(shape.Shape)}: {shape.Count} / {shape.MissingFormat}");
+            }
+        }
         _writer.WriteLine("Scope: metadata presence plus advisory lexical DAX type evidence; no DAX execution or SM-002 verdict changes.");
     }
 }

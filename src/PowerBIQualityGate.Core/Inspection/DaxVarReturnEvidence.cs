@@ -1,12 +1,45 @@
 namespace PowerBIQualityGate.Core.Inspection;
 
 /// <summary>
+/// Fixed, privacy-safe reason codes for conservative VAR/RETURN analysis.
+/// Reasons describe analyzer limitations, NOT DAX syntax errors or model defects.
+/// </summary>
+public enum DaxVarReturnDiagnosticReason
+{
+    NotApplicable,
+    StructureRejected,
+    UnsupportedReturnExpression,
+    UnsupportedVariableExpression,
+    UnknownOrForwardVariable,
+    AnalysisLimitExceeded
+}
+
+public readonly record struct DaxVarReturnDiagnostic(
+    StaticDaxTypeEvidenceKind Evidence,
+    DaxVarReturnDiagnosticReason Reason,
+    DaxRootShapeKind BlockedRootShape);
+
+public sealed record DaxVarReturnReasonCount(
+    DaxVarReturnDiagnosticReason Reason, int Count, int MissingFormat);
+
+/// <summary>
 /// Advisory-only evidence from a deliberately narrow VAR ... RETURN shape.
 /// Not a complete DAX parser, expression validator, semantic type checker or
 /// substitute for a running tabular engine. Never feeds the SM-002 warning gate.
 /// </summary>
 public static class DaxVarReturnEvidence
 {
+    /// <summary>Fixed labels; no private identifiers or expression text are emitted.</summary>
+    public static string ReasonLabel(DaxVarReturnDiagnosticReason reason) => reason switch
+    {
+        DaxVarReturnDiagnosticReason.StructureRejected => "Structure / tokenizer rejected",
+        DaxVarReturnDiagnosticReason.UnsupportedReturnExpression => "Unsupported RETURN expression",
+        DaxVarReturnDiagnosticReason.UnsupportedVariableExpression => "Unsupported variable expression",
+        DaxVarReturnDiagnosticReason.UnknownOrForwardVariable => "Unknown / forward alias",
+        DaxVarReturnDiagnosticReason.AnalysisLimitExceeded => "Analysis limits exceeded",
+        _ => "Not applicable"
+    };
+
     private const int MaxExpressionLength = 16384;
     private const int MaxVariables = 64;
     private const int MaxAliasDepth = 32;
@@ -14,26 +47,48 @@ public static class DaxVarReturnEvidence
     private readonly record struct Keyword(string Word, int Start, int End);
     private sealed record Definition(string Name, string Expression);
 
-    public static StaticDaxTypeEvidenceKind Analyze(string? expression)
+    /// <summary>Preserves the SM-002.3b API and its exact evidence semantics.</summary>
+    public static StaticDaxTypeEvidenceKind Analyze(string? expression) =>
+        AnalyzeDetailed(expression).Evidence;
+
+    /// <summary>
+    /// Reports the first conservative failure reason without exposing any DAX,
+    /// variable or measure identifiers. This remains advisory-only.
+    /// </summary>
+    public static DaxVarReturnDiagnostic AnalyzeDetailed(string? expression)
     {
-        if (string.IsNullOrWhiteSpace(expression) || expression.Length > MaxExpressionLength ||
-            !TryScan(expression, out var normalized, out var keywords) ||
-            keywords.Count < 2 || keywords.Count > MaxVariables + 1 ||
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
+        }
+        if (expression.Length > MaxExpressionLength)
+        {
+            return Failure(DaxVarReturnDiagnosticReason.AnalysisLimitExceeded);
+        }
+        if (!TryScan(expression, out var normalized, out var keywords))
+        {
+            return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
+        }
+        if (keywords.Count > MaxVariables + 1)
+        {
+            return Failure(DaxVarReturnDiagnosticReason.AnalysisLimitExceeded);
+        }
+        if (keywords.Count < 2 ||
             !IsKeyword(keywords[0], "VAR") || !IsKeyword(keywords[^1], "RETURN") ||
             !string.IsNullOrWhiteSpace(normalized[..keywords[0].Start]))
         {
-            return StaticDaxTypeEvidenceKind.Unresolved;
+            return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
         }
 
-        // A keyword must be separated from the preceding expression token.
-        // For example, `1RETURN x` and `SUM(Data[Value])RETURN x` are not
-        // accepted as valid declaration boundaries.
+        // The boundary between declarations is deliberately stricter than
+        // general DAX. Failed validation is a structural bucket, not a claim
+        // that the expression is invalid for Microsoft Analysis Services.
         for (var index = 1; index < keywords.Count; index++)
         {
             if (keywords[index].Start == 0 ||
                 !char.IsWhiteSpace(normalized[keywords[index].Start - 1]))
             {
-                return StaticDaxTypeEvidenceKind.Unresolved;
+                return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
             }
         }
 
@@ -45,56 +100,60 @@ public static class DaxVarReturnEvidence
                 !TryParseDeclaration(normalized[keywords[index].End..keywords[index + 1].Start],
                     out var name, out var value) || !names.Add(name))
             {
-                return StaticDaxTypeEvidenceKind.Unresolved;
+                return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
             }
-
             variables.Add(new Definition(name, value));
         }
 
         var returned = normalized[keywords[^1].End..].Trim();
         if (returned.Length == 0)
         {
-            return StaticDaxTypeEvidenceKind.Unresolved;
+            return Failure(DaxVarReturnDiagnosticReason.StructureRejected);
         }
 
-        return Resolve(returned, variables, variables.Count, 0);
+        return Resolve(returned, variables, variables.Count, depth: 0, isVariableValue: false);
     }
 
-    private static StaticDaxTypeEvidenceKind Resolve(string expression,
-        IReadOnlyList<Definition> variables, int availableCount, int depth)
+    private static DaxVarReturnDiagnostic Resolve(string expression,
+        IReadOnlyList<Definition> variables, int availableCount, int depth, bool isVariableValue)
     {
         if (depth > MaxAliasDepth)
         {
-            return StaticDaxTypeEvidenceKind.Unresolved;
+            return Failure(DaxVarReturnDiagnosticReason.AnalysisLimitExceeded);
         }
 
-        // Reuse the established lexical classifier, without promoting its
-        // output to a TOM-confirmed data type.
         var evidence = StaticDaxTypeEvidence.Analyze(expression);
         if (evidence != StaticDaxTypeEvidenceKind.Unresolved)
         {
-            return evidence;
+            return new DaxVarReturnDiagnostic(evidence,
+                DaxVarReturnDiagnosticReason.NotApplicable, DaxRootShapeKind.NotApplicable);
         }
 
-        // Only a *bare* identifier may alias a previously defined variable.
-        // Bracket references, arithmetic, wrappers and undeclared identifiers
-        // remain unresolved. Forward references and cycles are not followed.
         var candidate = expression.Trim();
         if (!IsVariableName(candidate))
         {
-            return StaticDaxTypeEvidenceKind.Unresolved;
+            return Failure(isVariableValue
+                ? DaxVarReturnDiagnosticReason.UnsupportedVariableExpression
+                : DaxVarReturnDiagnosticReason.UnsupportedReturnExpression,
+                DaxRootShapeProfiler.Analyze(candidate));
         }
 
+        // Do not follow forward references. A variable's definition may only
+        // refer to preceding declarations in this conservative implementation.
         for (var i = availableCount - 1; i >= 0; i--)
         {
             if (string.Equals(variables[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
             {
-                return Resolve(variables[i].Expression, variables, i, depth + 1);
+                return Resolve(variables[i].Expression, variables, i, depth + 1,
+                    isVariableValue: true);
             }
         }
-
-        return StaticDaxTypeEvidenceKind.Unresolved;
+        return Failure(DaxVarReturnDiagnosticReason.UnknownOrForwardVariable);
     }
+
+    private static DaxVarReturnDiagnostic Failure(DaxVarReturnDiagnosticReason reason,
+        DaxRootShapeKind blockedRoot = DaxRootShapeKind.NotApplicable) =>
+        new(StaticDaxTypeEvidenceKind.Unresolved, reason, blockedRoot);
 
     private static bool TryParseDeclaration(string segment, out string name, out string value)
     {
