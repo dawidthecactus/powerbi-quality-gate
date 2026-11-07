@@ -54,6 +54,11 @@ public sealed record InspectedMeasure(
     /// <summary>Independent advisory hint for unresolved VAR entry shapes only.</summary>
     public StaticDaxTypeEvidenceKind VarReturnEvidence { get; init; } =
         StaticDaxTypeEvidenceKind.NotAssessed;
+
+    /// <summary>Fixed-only advisory reason; no DAX or variable name is retained.</summary>
+    public DaxVarReturnDiagnosticReason VarReturnReason { get; init; } =
+        DaxVarReturnDiagnosticReason.NotApplicable;
+    public DaxRootShapeKind VarReturnBlockedShape { get; init; } = DaxRootShapeKind.NotApplicable;
 }
 
 /// <summary>
@@ -95,6 +100,10 @@ public sealed record MeasureInspectionSummary(
     public int VarReturnLikelyNumericMissingFormat { get; init; }
     public int VarReturnAnalyzed =>
         VarReturnLikelyNumeric + VarReturnLikelyNonNumeric + VarReturnUnresolved;
+
+    /// <summary>Optional fixed-label diagnostics for unresolved VAR/RETURN only.</summary>
+    public IReadOnlyList<DaxVarReturnReasonCount> VarReturnUnresolvedReasons { get; init; } = [];
+    public IReadOnlyList<DaxRootShapeCount> VarReturnBlockedShapes { get; init; } = [];
 }
 
 public sealed record MeasureInspectionReport(
@@ -157,6 +166,22 @@ public sealed class MeasureInspectionEngine
             VarReturnLikelyNumericMissingFormat = visible.Count(m =>
                 m.VarReturnEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric &&
                 m.FormatKind == MeasureFormatKind.Missing),
+            VarReturnUnresolvedReasons = Enum.GetValues<DaxVarReturnDiagnosticReason>()
+                .Where(reason => reason != DaxVarReturnDiagnosticReason.NotApplicable)
+                .Select(reason => new DaxVarReturnReasonCount(reason,
+                    visible.Count(m => m.VarReturnReason == reason),
+                    visible.Count(m => m.VarReturnReason == reason &&
+                        m.FormatKind == MeasureFormatKind.Missing)))
+                .Where(group => group.Count > 0)
+                .ToArray(),
+            VarReturnBlockedShapes = Enum.GetValues<DaxRootShapeKind>()
+                .Where(shape => shape != DaxRootShapeKind.NotApplicable)
+                .Select(shape => new DaxRootShapeCount(shape,
+                    visible.Count(m => m.VarReturnBlockedShape == shape),
+                    visible.Count(m => m.VarReturnBlockedShape == shape &&
+                        m.FormatKind == MeasureFormatKind.Missing)))
+                .Where(group => group.Count > 0)
+                .ToArray(),
             UnresolvedRootShapes = Enum.GetValues<DaxRootShapeKind>()
                 .Where(shape => shape != DaxRootShapeKind.NotApplicable)
                 .Select(shape => new DaxRootShapeCount(shape,
@@ -196,6 +221,11 @@ public sealed class MeasureInspectionEngine
         var rootShape = evidence == StaticDaxTypeEvidenceKind.Unresolved
             ? DaxRootShapeProfiler.Analyze(measure.Expression)
             : DaxRootShapeKind.NotApplicable;
+        var varResult = !table.IsHidden && !measure.IsHidden &&
+            rootShape == DaxRootShapeKind.Variable
+            ? DaxVarReturnEvidence.AnalyzeDetailed(measure.Expression)
+            : new DaxVarReturnDiagnostic(StaticDaxTypeEvidenceKind.NotAssessed,
+                DaxVarReturnDiagnosticReason.NotApplicable, DaxRootShapeKind.NotApplicable);
         return new InspectedMeasure(
             table.Name,
             measure.Name,
@@ -209,10 +239,9 @@ public sealed class MeasureInspectionEngine
         {
             StaticDaxTypeEvidence = evidence,
             UnresolvedRootShape = rootShape,
-            VarReturnEvidence = !table.IsHidden && !measure.IsHidden &&
-                rootShape == DaxRootShapeKind.Variable
-                ? DaxVarReturnEvidence.Analyze(measure.Expression)
-                : StaticDaxTypeEvidenceKind.NotAssessed
+            VarReturnEvidence = varResult.Evidence,
+            VarReturnReason = varResult.Reason,
+            VarReturnBlockedShape = varResult.BlockedRootShape
         };
     }
 
