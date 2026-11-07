@@ -27,6 +27,8 @@ public sealed class MeasureInspectionRenderer
         _writer.WriteLine($"Format (visible): static {s.StaticFormats}  |  dynamic {s.DynamicFormats}  |  missing {s.MissingFormats}");
         _writer.WriteLine($"Type (visible): numeric {s.NumericTypes}  |  nonnumeric {s.NonNumericTypes}  |  unknown {s.UnknownTypes}  |  unsupported {s.UnsupportedTypes}");
         _writer.WriteLine($"Metadata notes: blank static {s.BlankStaticFormats}  |  blank dynamic expression {s.BlankDynamicExpressions}  |  unavailable dynamic expression {s.UnavailableDynamicExpressions}  |  both format kinds {s.BothFormats}");
-        _writer.WriteLine("Scope: format metadata presence only; no DAX execution, type inference or SM-002 verdict changes.");
+        _writer.WriteLine($"Static DAX evidence (TOM unknown/unsupported): likely numeric {s.StaticDaxLikelyNumeric}  |  likely nonnumeric {s.StaticDaxLikelyNonNumeric}  |  unresolved {s.StaticDaxUnresolved}");
+        _writer.WriteLine($"Static DAX review: missing format among likely numeric {s.StaticDaxLikelyNumericMissingFormat} (advisory only; not SM-002 warnings)");
+        _writer.WriteLine("Scope: metadata presence plus advisory lexical DAX type evidence; no DAX execution or SM-002 verdict changes.");
     }
 }

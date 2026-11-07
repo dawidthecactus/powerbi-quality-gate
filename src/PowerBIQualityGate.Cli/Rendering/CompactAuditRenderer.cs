@@ -212,6 +212,8 @@ public sealed class CompactAuditRenderer
         Write($"    Unsupported type + missing format: {assessment.UnsupportedTypeMissingFormat} review");
         Write($"    Dynamic definition needs review: {assessment.DynamicFormatNeedsReview} review");
         Write($"    Format present, unresolved type: {assessment.UnknownTypeWithFormat + assessment.UnsupportedTypeWithFormat} (not counted as review)");
+        Write($"    Static DAX evidence (advisory): likely numeric {inventory.StaticDaxLikelyNumeric} · likely nonnumeric {inventory.StaticDaxLikelyNonNumeric} · unresolved {inventory.StaticDaxUnresolved}");
+        Write($"    Missing format among likely numeric: {inventory.StaticDaxLikelyNumericMissingFormat} review-only (no new SM-002 warnings)");
         Write($"    Excluded: {assessment.KnownNonNumeric} known nonnumeric · {inventory.Hidden} hidden");
         Write("    Review items are not findings and do not block the quality gate.");
         Write("    SM-002 coverage still measures numeric type classification, not metadata inspection.");
