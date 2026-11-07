@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+# PBIQ pilot private data: keep real model paths and raw results outside Git.
+/pilot-private/
+/.pilot-private/
