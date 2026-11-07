@@ -130,6 +130,19 @@ public static class DaxVarReturnEvidence
         }
 
         var candidate = expression.Trim();
+        // CALCULATE keeps its first argument's scalar type. This is lexical,
+        // advisory evidence only. Unsupported nested values retain the old
+        // unresolved reason and blocked-shape classification.
+        if (DaxCalculateScalarArgument.TryExtract(candidate, out var scalarArgument))
+        {
+            var inner = Resolve(scalarArgument, variables, availableCount,
+                depth + 1, isVariableValue);
+            if (inner.Evidence != StaticDaxTypeEvidenceKind.Unresolved)
+            {
+                return inner;
+            }
+        }
+
         if (!IsVariableName(candidate))
         {
             return Failure(isVariableValue
