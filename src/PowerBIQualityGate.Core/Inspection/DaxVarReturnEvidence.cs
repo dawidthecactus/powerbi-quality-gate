@@ -14,13 +14,34 @@ public enum DaxVarReturnDiagnosticReason
     AnalysisLimitExceeded
 }
 
+/// <summary>
+/// Fixed diagnostic categories describing why a conditional-root expression
+/// was not recognized. These are analyzer limitations, never DAX errors.
+/// </summary>
+public enum DaxConditionalResolutionKind
+{
+    NotApplicable,
+    UnsupportedCallShape,
+    UnresolvedResultBranch,
+    MixedResultTypes,
+    OnlyBlankResults
+}
+
 public readonly record struct DaxVarReturnDiagnostic(
     StaticDaxTypeEvidenceKind Evidence,
     DaxVarReturnDiagnosticReason Reason,
-    DaxRootShapeKind BlockedRootShape);
+    DaxRootShapeKind BlockedRootShape)
+{
+    // Zero values mean NotApplicable, preserving existing call sites.
+    public DaxConditionalResolutionKind ConditionalReason { get; init; }
+    public DaxRootShapeKind FirstUnresolvedConditionalBranchShape { get; init; }
+}
 
 public sealed record DaxVarReturnReasonCount(
     DaxVarReturnDiagnosticReason Reason, int Count, int MissingFormat);
+
+public sealed record DaxConditionalResolutionCount(
+    DaxConditionalResolutionKind Reason, int Count, int MissingFormat);
 
 /// <summary>
 /// Advisory-only evidence from a deliberately narrow VAR ... RETURN shape.
@@ -37,6 +58,16 @@ public static class DaxVarReturnEvidence
         DaxVarReturnDiagnosticReason.UnsupportedVariableExpression => "Unsupported variable expression",
         DaxVarReturnDiagnosticReason.UnknownOrForwardVariable => "Unknown / forward alias",
         DaxVarReturnDiagnosticReason.AnalysisLimitExceeded => "Analysis limits exceeded",
+        _ => "Not applicable"
+    };
+
+    /// <summary>Fixed-label only, safe for anonymous aggregate printing.</summary>
+    public static string ConditionalLabel(DaxConditionalResolutionKind kind) => kind switch
+    {
+        DaxConditionalResolutionKind.UnsupportedCallShape => "Unsupported conditional call shape",
+        DaxConditionalResolutionKind.UnresolvedResultBranch => "Unresolved result branch",
+        DaxConditionalResolutionKind.MixedResultTypes => "Mixed numeric / nonnumeric result kinds",
+        DaxConditionalResolutionKind.OnlyBlankResults => "Only BLANK results",
         _ => "Not applicable"
     };
 
@@ -133,9 +164,16 @@ public static class DaxVarReturnEvidence
         }
 
         var candidate = expression.Trim();
-        // Conditional result values must ALL have the same known advisory type;
-        // BLANK is neutral but cannot determine a type on its own. This is
-        // deliberately narrower than the full DAX coercion/variant rules.
+        var rootShape = DaxRootShapeProfiler.Analyze(candidate);
+        var conditionalReason = rootShape == DaxRootShapeKind.Conditional
+            ? DaxConditionalResolutionKind.UnsupportedCallShape
+            : DaxConditionalResolutionKind.NotApplicable;
+        var firstUnknownBranchShape = DaxRootShapeKind.NotApplicable;
+
+        // Preserve the original conservative resolution policy. Only record
+        // *why* an unresolved IF/SWITCH/COALESCE call was not classified.
+        // Diagnostics stop at the first unknown/conflicting branch, mirroring
+        // the pre-existing inference path and step budget.
         if (DaxConditionalScalarArguments.TryExtract(candidate, out var branches))
         {
             StaticDaxTypeEvidenceKind? common = null;
@@ -151,11 +189,16 @@ public static class DaxVarReturnEvidence
                     StaticDaxTypeEvidenceKind.LikelyNonNumeric))
                 {
                     compatible = false;
+                    conditionalReason = DaxConditionalResolutionKind.UnresolvedResultBranch;
+                    firstUnknownBranchShape = result.BlockedRootShape != DaxRootShapeKind.NotApplicable
+                        ? result.BlockedRootShape
+                        : DaxRootShapeProfiler.Analyze(branch);
                     break;
                 }
                 if (common is not null && common.Value != result.Evidence)
                 {
                     compatible = false;
+                    conditionalReason = DaxConditionalResolutionKind.MixedResultTypes;
                     break;
                 }
                 common = result.Evidence;
@@ -164,6 +207,8 @@ public static class DaxVarReturnEvidence
                 return new DaxVarReturnDiagnostic(kind,
                     DaxVarReturnDiagnosticReason.NotApplicable,
                     DaxRootShapeKind.NotApplicable);
+            if (compatible)
+                conditionalReason = DaxConditionalResolutionKind.OnlyBlankResults;
         }
 
         // CALCULATE keeps its first argument's scalar type. This is lexical,
@@ -186,7 +231,7 @@ public static class DaxVarReturnEvidence
             return Failure(isVariableValue
                 ? DaxVarReturnDiagnosticReason.UnsupportedVariableExpression
                 : DaxVarReturnDiagnosticReason.UnsupportedReturnExpression,
-                DaxRootShapeProfiler.Analyze(candidate));
+                rootShape, conditionalReason, firstUnknownBranchShape);
         }
 
         // Do not follow forward references. A variable's definition may only
@@ -203,8 +248,14 @@ public static class DaxVarReturnEvidence
     }
 
     private static DaxVarReturnDiagnostic Failure(DaxVarReturnDiagnosticReason reason,
-        DaxRootShapeKind blockedRoot = DaxRootShapeKind.NotApplicable) =>
-        new(StaticDaxTypeEvidenceKind.Unresolved, reason, blockedRoot);
+        DaxRootShapeKind blockedRoot = DaxRootShapeKind.NotApplicable,
+        DaxConditionalResolutionKind conditionalReason = DaxConditionalResolutionKind.NotApplicable,
+        DaxRootShapeKind firstUnknownBranchShape = DaxRootShapeKind.NotApplicable) =>
+        new(StaticDaxTypeEvidenceKind.Unresolved, reason, blockedRoot)
+        {
+            ConditionalReason = conditionalReason,
+            FirstUnresolvedConditionalBranchShape = firstUnknownBranchShape
+        };
 
     private static bool TryParseDeclaration(string segment, out string name, out string value)
     {

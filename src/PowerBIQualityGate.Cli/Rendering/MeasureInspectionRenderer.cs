@@ -58,6 +58,22 @@ public sealed class MeasureInspectionRenderer
                 _writer.WriteLine($"  {DaxRootShapeProfiler.Label(shape.Shape)}: {shape.Count} / {shape.MissingFormat}");
             }
         }
+        if (s.VarReturnConditionalReasons.Count > 0)
+        {
+            _writer.WriteLine("VAR / RETURN conditional unresolved reasons (count / missing format; advisory only):");
+            foreach (var reason in s.VarReturnConditionalReasons)
+            {
+                _writer.WriteLine($"  {DaxVarReturnEvidence.ConditionalLabel(reason.Reason)}: {reason.Count} / {reason.MissingFormat}");
+            }
+        }
+        if (s.VarReturnConditionalUnknownBranchShapes.Count > 0)
+        {
+            _writer.WriteLine("VAR / RETURN first unresolved conditional branch shapes (subset; count / missing format):");
+            foreach (var shape in s.VarReturnConditionalUnknownBranchShapes)
+            {
+                _writer.WriteLine($"  {DaxRootShapeProfiler.Label(shape.Shape)}: {shape.Count} / {shape.MissingFormat}");
+            }
+        }
         _writer.WriteLine("Scope: metadata presence plus advisory lexical DAX type evidence; no DAX execution or SM-002 verdict changes.");
     }
 }
