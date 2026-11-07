@@ -29,6 +29,14 @@ public sealed class MeasureInspectionRenderer
         _writer.WriteLine($"Metadata notes: blank static {s.BlankStaticFormats}  |  blank dynamic expression {s.BlankDynamicExpressions}  |  unavailable dynamic expression {s.UnavailableDynamicExpressions}  |  both format kinds {s.BothFormats}");
         _writer.WriteLine($"Static DAX evidence (TOM unknown/unsupported): likely numeric {s.StaticDaxLikelyNumeric}  |  likely nonnumeric {s.StaticDaxLikelyNonNumeric}  |  unresolved {s.StaticDaxUnresolved}");
         _writer.WriteLine($"Static DAX review: missing format among likely numeric {s.StaticDaxLikelyNumericMissingFormat} (advisory only; not SM-002 warnings)");
+        if (s.UnresolvedRootShapes.Count > 0)
+        {
+            _writer.WriteLine("Unresolved DAX entry shapes (count / missing format; approximate, advisory only):");
+            foreach (var group in s.UnresolvedRootShapes)
+            {
+                _writer.WriteLine($"  {DaxRootShapeProfiler.Label(group.Shape)}: {group.Count} / {group.MissingFormat}");
+            }
+        }
         _writer.WriteLine("Scope: metadata presence plus advisory lexical DAX type evidence; no DAX execution or SM-002 verdict changes.");
     }
 }

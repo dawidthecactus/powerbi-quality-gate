@@ -47,6 +47,9 @@ public sealed record InspectedMeasure(
     /// <summary>Auxiliary lexical evidence. Never promoted to a confirmed TOM type.</summary>
     public StaticDaxTypeEvidenceKind StaticDaxTypeEvidence { get; init; } =
         StaticDaxTypeEvidenceKind.NotAssessed;
+
+    /// <summary>A coarse entry shape only for unresolved static DAX evidence.</summary>
+    public DaxRootShapeKind UnresolvedRootShape { get; init; } = DaxRootShapeKind.NotApplicable;
 }
 
 /// <summary>
@@ -78,6 +81,7 @@ public sealed record MeasureInspectionSummary(
     public int StaticDaxLikelyNonNumeric { get; init; }
     public int StaticDaxUnresolved { get; init; }
     public int StaticDaxLikelyNumericMissingFormat { get; init; }
+    public IReadOnlyList<DaxRootShapeCount> UnresolvedRootShapes { get; init; } = [];
 }
 
 public sealed record MeasureInspectionReport(
@@ -130,7 +134,15 @@ public sealed class MeasureInspectionEngine
                 m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.Unresolved),
             StaticDaxLikelyNumericMissingFormat = visible.Count(m =>
                 m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric &&
-                m.FormatKind == MeasureFormatKind.Missing)
+                m.FormatKind == MeasureFormatKind.Missing),
+            UnresolvedRootShapes = Enum.GetValues<DaxRootShapeKind>()
+                .Where(shape => shape != DaxRootShapeKind.NotApplicable)
+                .Select(shape => new DaxRootShapeCount(shape,
+                    visible.Count(m => m.UnresolvedRootShape == shape),
+                    visible.Count(m => m.UnresolvedRootShape == shape &&
+                        m.FormatKind == MeasureFormatKind.Missing)))
+                .Where(group => group.Count > 0)
+                .ToArray()
         };
 
         return new MeasureInspectionReport(measures, summary);
@@ -155,6 +167,10 @@ public sealed class MeasureInspectionEngine
 
         var dataType = measure.DataType?.Trim() ?? string.Empty;
         var classification = ClassifyDataType(dataType);
+        var evidence = classification is MeasureDataTypeKind.Unknown or
+            MeasureDataTypeKind.Unsupported
+            ? StaticDaxTypeEvidence.Analyze(measure.Expression)
+            : StaticDaxTypeEvidenceKind.NotAssessed;
         return new InspectedMeasure(
             table.Name,
             measure.Name,
@@ -166,10 +182,10 @@ public sealed class MeasureInspectionEngine
             expression,
             staticPresent && dynamicPresent)
         {
-            StaticDaxTypeEvidence = classification is MeasureDataTypeKind.Unknown or
-                MeasureDataTypeKind.Unsupported
-                ? StaticDaxTypeEvidence.Analyze(measure.Expression)
-                : StaticDaxTypeEvidenceKind.NotAssessed
+            StaticDaxTypeEvidence = evidence,
+            UnresolvedRootShape = evidence == StaticDaxTypeEvidenceKind.Unresolved
+                ? DaxRootShapeProfiler.Analyze(measure.Expression)
+                : DaxRootShapeKind.NotApplicable
         };
     }
 
