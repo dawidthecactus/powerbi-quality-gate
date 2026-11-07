@@ -42,7 +42,12 @@ public sealed record InspectedMeasure(
     MeasureFormatKind FormatKind,
     bool HasBlankStaticFormat,
     DynamicFormatExpressionKind DynamicExpressionKind,
-    bool HasBothFormats);
+    bool HasBothFormats)
+{
+    /// <summary>Auxiliary lexical evidence. Never promoted to a confirmed TOM type.</summary>
+    public StaticDaxTypeEvidenceKind StaticDaxTypeEvidence { get; init; } =
+        StaticDaxTypeEvidenceKind.NotAssessed;
+}
 
 /// <summary>
 /// Two independent, mutually exclusive partitions of VISIBLE measures: format
@@ -66,6 +71,13 @@ public sealed record MeasureInspectionSummary(
     int BothFormats)
 {
     public int Inspected => Total;
+
+    // Advisory hints for visible measures whose offline TOM result type is
+    // Unknown or Unsupported. These counts NEVER enter SM-002 gate coverage.
+    public int StaticDaxLikelyNumeric { get; init; }
+    public int StaticDaxLikelyNonNumeric { get; init; }
+    public int StaticDaxUnresolved { get; init; }
+    public int StaticDaxLikelyNumericMissingFormat { get; init; }
 }
 
 public sealed record MeasureInspectionReport(
@@ -108,7 +120,18 @@ public sealed class MeasureInspectionEngine
                 measure.DynamicExpressionKind == DynamicFormatExpressionKind.Blank),
             UnavailableDynamicExpressions: visible.Count(measure =>
                 measure.DynamicExpressionKind == DynamicFormatExpressionKind.Unavailable),
-            BothFormats: visible.Count(measure => measure.HasBothFormats));
+            BothFormats: visible.Count(measure => measure.HasBothFormats))
+        {
+            StaticDaxLikelyNumeric = visible.Count(m =>
+                m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric),
+            StaticDaxLikelyNonNumeric = visible.Count(m =>
+                m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.LikelyNonNumeric),
+            StaticDaxUnresolved = visible.Count(m =>
+                m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.Unresolved),
+            StaticDaxLikelyNumericMissingFormat = visible.Count(m =>
+                m.StaticDaxTypeEvidence == StaticDaxTypeEvidenceKind.LikelyNumeric &&
+                m.FormatKind == MeasureFormatKind.Missing)
+        };
 
         return new MeasureInspectionReport(measures, summary);
     }
@@ -131,16 +154,23 @@ public sealed class MeasureInspectionEngine
             : DynamicFormatExpressionKind.NotApplicable;
 
         var dataType = measure.DataType?.Trim() ?? string.Empty;
+        var classification = ClassifyDataType(dataType);
         return new InspectedMeasure(
             table.Name,
             measure.Name,
             !table.IsHidden && !measure.IsHidden,
             dataType,
-            ClassifyDataType(dataType),
+            classification,
             format,
             !string.IsNullOrEmpty(measure.FormatString) && !staticPresent,
             expression,
-            staticPresent && dynamicPresent);
+            staticPresent && dynamicPresent)
+        {
+            StaticDaxTypeEvidence = classification is MeasureDataTypeKind.Unknown or
+                MeasureDataTypeKind.Unsupported
+                ? StaticDaxTypeEvidence.Analyze(measure.Expression)
+                : StaticDaxTypeEvidenceKind.NotAssessed
+        };
     }
 
     private static MeasureDataTypeKind ClassifyDataType(string dataType)
