@@ -59,6 +59,10 @@ public sealed record InspectedMeasure(
     public DaxVarReturnDiagnosticReason VarReturnReason { get; init; } =
         DaxVarReturnDiagnosticReason.NotApplicable;
     public DaxRootShapeKind VarReturnBlockedShape { get; init; } = DaxRootShapeKind.NotApplicable;
+
+    /// <summary>Fixed conditional reason, not a DAX error or object identifier.</summary>
+    public DaxConditionalResolutionKind VarReturnConditionalReason { get; init; }
+    public DaxRootShapeKind VarReturnConditionalUnknownBranchShape { get; init; }
 }
 
 /// <summary>
@@ -104,6 +108,8 @@ public sealed record MeasureInspectionSummary(
     /// <summary>Optional fixed-label diagnostics for unresolved VAR/RETURN only.</summary>
     public IReadOnlyList<DaxVarReturnReasonCount> VarReturnUnresolvedReasons { get; init; } = [];
     public IReadOnlyList<DaxRootShapeCount> VarReturnBlockedShapes { get; init; } = [];
+    public IReadOnlyList<DaxConditionalResolutionCount> VarReturnConditionalReasons { get; init; } = [];
+    public IReadOnlyList<DaxRootShapeCount> VarReturnConditionalUnknownBranchShapes { get; init; } = [];
 }
 
 public sealed record MeasureInspectionReport(
@@ -182,6 +188,28 @@ public sealed class MeasureInspectionEngine
                         m.FormatKind == MeasureFormatKind.Missing)))
                 .Where(group => group.Count > 0)
                 .ToArray(),
+            VarReturnConditionalReasons = Enum.GetValues<DaxConditionalResolutionKind>()
+                .Where(reason => reason != DaxConditionalResolutionKind.NotApplicable)
+                .Select(reason => new DaxConditionalResolutionCount(reason,
+                    visible.Count(m => m.VarReturnBlockedShape == DaxRootShapeKind.Conditional &&
+                        m.VarReturnConditionalReason == reason),
+                    visible.Count(m => m.VarReturnBlockedShape == DaxRootShapeKind.Conditional &&
+                        m.VarReturnConditionalReason == reason &&
+                        m.FormatKind == MeasureFormatKind.Missing)))
+                .Where(group => group.Count > 0)
+                .ToArray(),
+            VarReturnConditionalUnknownBranchShapes = Enum.GetValues<DaxRootShapeKind>()
+                .Where(shape => shape != DaxRootShapeKind.NotApplicable)
+                .Select(shape => new DaxRootShapeCount(shape,
+                    visible.Count(m => m.VarReturnBlockedShape == DaxRootShapeKind.Conditional &&
+                        m.VarReturnConditionalReason == DaxConditionalResolutionKind.UnresolvedResultBranch &&
+                        m.VarReturnConditionalUnknownBranchShape == shape),
+                    visible.Count(m => m.VarReturnBlockedShape == DaxRootShapeKind.Conditional &&
+                        m.VarReturnConditionalReason == DaxConditionalResolutionKind.UnresolvedResultBranch &&
+                        m.VarReturnConditionalUnknownBranchShape == shape &&
+                        m.FormatKind == MeasureFormatKind.Missing)))
+                .Where(group => group.Count > 0)
+                .ToArray(),
             UnresolvedRootShapes = Enum.GetValues<DaxRootShapeKind>()
                 .Where(shape => shape != DaxRootShapeKind.NotApplicable)
                 .Select(shape => new DaxRootShapeCount(shape,
@@ -241,7 +269,9 @@ public sealed class MeasureInspectionEngine
             UnresolvedRootShape = rootShape,
             VarReturnEvidence = varResult.Evidence,
             VarReturnReason = varResult.Reason,
-            VarReturnBlockedShape = varResult.BlockedRootShape
+            VarReturnBlockedShape = varResult.BlockedRootShape,
+            VarReturnConditionalReason = varResult.ConditionalReason,
+            VarReturnConditionalUnknownBranchShape = varResult.FirstUnresolvedConditionalBranchShape
         };
     }
 
