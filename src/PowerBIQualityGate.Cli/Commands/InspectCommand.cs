@@ -27,12 +27,22 @@ public static class InspectCommand
         {
             Description = "Summarize all TOM measure-format metadata and data types without exposing names or DAX."
         };
+        var evidenceSampleOption = new Option<string>("--evidence-sample")
+        {
+            Description = "Create a PRIVATE review sample outside Git (requires --measures and --case-id)."
+        };
+        var caseIdOption = new Option<string>("--case-id")
+        {
+            Description = "Anonymous case alias such as P01 for private evidence sampling."
+        };
 
         var command = new Command("inspect", "Inspect a local TMDL semantic model.");
         command.Arguments.Add(pathArgument);
         command.Options.Add(noColorOption);
         command.Options.Add(tomOption);
         command.Options.Add(measuresOption);
+        command.Options.Add(evidenceSampleOption);
+        command.Options.Add(caseIdOption);
         command.SetAction(parseResult =>
         {
             var path = parseResult.GetValue(pathArgument) ?? string.Empty;
@@ -40,10 +50,21 @@ public static class InspectCommand
                           Environment.GetEnvironmentVariable("NO_COLOR") is not null;
             var useTom = parseResult.GetValue(tomOption);
             var inspectMeasures = parseResult.GetValue(measuresOption);
+            var samplePath = parseResult.GetValue(evidenceSampleOption);
+            var sampleCaseId = parseResult.GetValue(caseIdOption);
 
             if (useTom && inspectMeasures)
             {
                 Console.Error.WriteLine("PBIQ inspect: --tom and --measures are alternative output modes (exit code 2).");
+                return 2;
+            }
+
+            if ((samplePath is not null || sampleCaseId is not null) &&
+                (!inspectMeasures || useTom ||
+                 string.IsNullOrWhiteSpace(samplePath) ||
+                 string.IsNullOrWhiteSpace(sampleCaseId)))
+            {
+                Console.Error.WriteLine("PBIQ inspect: --evidence-sample requires --measures and --case-id (exit code 2).");
                 return 2;
             }
 
@@ -87,6 +108,19 @@ public static class InspectCommand
                 {
                     var report = new MeasureInspectionEngine().Inspect(snapshot);
                     new MeasureInspectionRenderer(Console.Out).Render(discovery.PbipPath!, report);
+                    if (samplePath is not null)
+                    {
+                        try
+                        {
+                            var count = EvidenceValidationSampleWriter.Write(samplePath, sampleCaseId!, report);
+                            Console.Out.WriteLine($"Private evidence sample: {count} rows (outside Git; do not share).");
+                        }
+                        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+                        {
+                            Console.Error.WriteLine("PBIQ inspect: private sample export failed. Choose a NEW CSV in an approved private directory outside Git (exit code 2).");
+                            return 2;
+                        }
+                    }
                 }
                 else
                 {
