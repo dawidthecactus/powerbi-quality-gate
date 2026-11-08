@@ -35,6 +35,14 @@ public static class InspectCommand
         {
             Description = "Anonymous case alias such as P01 for private evidence sampling."
         };
+        var dependenciesOption = new Option<bool>("--dependencies")
+        {
+            Description = "Opt-in, aggregate-only lexical DAX dependency discovery."
+        };
+        var dependencyReviewOption = new Option<string>("--dependency-review")
+        {
+            Description = "Create a PRIVATE local CSV of candidate references (requires --dependencies and --case-id)."
+        };
 
         var command = new Command("inspect", "Inspect a local TMDL semantic model.");
         command.Arguments.Add(pathArgument);
@@ -43,6 +51,8 @@ public static class InspectCommand
         command.Options.Add(measuresOption);
         command.Options.Add(evidenceSampleOption);
         command.Options.Add(caseIdOption);
+        command.Options.Add(dependenciesOption);
+        command.Options.Add(dependencyReviewOption);
         command.SetAction(parseResult =>
         {
             var path = parseResult.GetValue(pathArgument) ?? string.Empty;
@@ -52,6 +62,8 @@ public static class InspectCommand
             var inspectMeasures = parseResult.GetValue(measuresOption);
             var samplePath = parseResult.GetValue(evidenceSampleOption);
             var sampleCaseId = parseResult.GetValue(caseIdOption);
+            var inspectDependencies = parseResult.GetValue(dependenciesOption);
+            var dependencyReviewPath = parseResult.GetValue(dependencyReviewOption);
 
             if (useTom && inspectMeasures)
             {
@@ -59,12 +71,21 @@ public static class InspectCommand
                 return 2;
             }
 
-            if ((samplePath is not null || sampleCaseId is not null) &&
-                (!inspectMeasures || useTom ||
+            if ((samplePath is not null && (!inspectMeasures || useTom ||
                  string.IsNullOrWhiteSpace(samplePath) ||
-                 string.IsNullOrWhiteSpace(sampleCaseId)))
+                 string.IsNullOrWhiteSpace(sampleCaseId))) ||
+                (sampleCaseId is not null && samplePath is null && dependencyReviewPath is null))
             {
                 Console.Error.WriteLine("PBIQ inspect: --evidence-sample requires --measures and --case-id (exit code 2).");
+                return 2;
+            }
+            if ((inspectDependencies && (!inspectMeasures || useTom)) ||
+                (dependencyReviewPath is not null &&
+                 (!inspectDependencies || !inspectMeasures || useTom ||
+                  string.IsNullOrWhiteSpace(dependencyReviewPath) ||
+                  string.IsNullOrWhiteSpace(sampleCaseId))))
+            {
+                Console.Error.WriteLine("PBIQ inspect: --dependencies requires --measures; --dependency-review also requires --case-id (exit code 2).");
                 return 2;
             }
 
@@ -108,6 +129,25 @@ public static class InspectCommand
                 {
                     var report = new MeasureInspectionEngine().Inspect(snapshot);
                     new MeasureInspectionRenderer(Console.Out).Render(discovery.PbipPath!, report);
+                    if (inspectDependencies)
+                    {
+                        var dependencyReport = DaxDependencyInspector.Inspect(snapshot);
+                        new DaxDependencySummaryRenderer(Console.Out).Render(dependencyReport);
+                        if (dependencyReviewPath is not null)
+                        {
+                            try
+                            {
+                                var count = DaxDependencyReviewWriter.Write(
+                                    dependencyReviewPath, sampleCaseId!, dependencyReport);
+                                Console.Out.WriteLine($"Private dependency review: {count} candidates (outside Git; do not share).");
+                            }
+                            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+                            {
+                                Console.Error.WriteLine("PBIQ inspect: private dependency review failed. Choose a NEW CSV outside Git (exit code 2).");
+                                return 2;
+                            }
+                        }
+                    }
                     if (samplePath is not null)
                     {
                         try
