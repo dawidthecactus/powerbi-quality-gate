@@ -42,7 +42,7 @@ public static class DaxDependencyInspector
     private const int MaxExpressionLength = 65536;
     private const int MaxReferences = 512;
 
-    private readonly record struct Reference(string? Table, string Member);
+    private readonly record struct Reference(string? Table, string Member, int BracketOffset);
 
     public static DaxDependencyReport Inspect(TomModelSnapshot snapshot)
     {
@@ -72,12 +72,16 @@ public static class DaxDependencyInspector
                     continue;
                 }
 
+                // Binding is scope- and expression-local. Unknown aliases retain
+                // their advisory candidate rather than being globally ignored.
+                var virtualBindings = DaxVirtualColumnScopes.FindScopedReferences(measure.Expression);
                 var perMeasure = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var reference in references)
                 {
                     DaxDependencyCandidateKind kind;
                     if (reference.Table is null)
                     {
+                        if (virtualBindings.Contains(reference.BracketOffset)) continue;
                         // Unqualified [Name] can bind to a measure, column or
                         // virtual column. Only flag names missing from the
                         // entire physical TOM inventory, for manual review.
@@ -163,13 +167,14 @@ public static class DaxDependencyInspector
                 {
                     i = after;
                     if (!TryReadBracket(text, ref i, out var member)) return false;
-                    references.Add(new Reference(quotedTable, member));
+                    references.Add(new Reference(quotedTable, member, after));
                 }
             }
             else if (current == '[')
             {
+                var bracketAt = i;
                 if (!TryReadBracket(text, ref i, out var member)) return false;
-                references.Add(new Reference(null, member));
+                references.Add(new Reference(null, member, bracketAt));
             }
             else if (IsWordStart(current))
             {
@@ -186,7 +191,7 @@ public static class DaxDependencyInspector
                     // RETURN [Measure] means an unqualified bracket reference.
                     references.Add(new Reference(
                         word.Equals("RETURN", StringComparison.OrdinalIgnoreCase)
-                            ? null : word, member));
+                            ? null : word, member, after));
                 }
             }
             else if (current == '(')
